@@ -96,4 +96,3 @@ model Session {
 
   @@map("sessions")
 }
-}
