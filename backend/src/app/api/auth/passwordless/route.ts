@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { sendEmail, generateLoginCode, getLoginEmailTemplate } from '@/lib/email'
+import { ApiErrorHandler, ValidationError } from '@/lib/errors'
 
 const sendCodeSchema = z.object({
   email: z.string().email('Invalid email format')
@@ -20,10 +21,7 @@ export async function POST(request: NextRequest) {
     if (action === 'send') {
       const validation = sendCodeSchema.safeParse(body)
       if (!validation.success) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid email format' },
-          { status: 400 }
-        )
+        throw new ValidationError('Invalid email format')
       }
 
       const { email } = validation.data
@@ -94,10 +92,7 @@ export async function POST(request: NextRequest) {
     if (action === 'verify') {
       const validation = verifyCodeSchema.safeParse(body)
       if (!validation.success) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid input' },
-          { status: 400 }
-        )
+        throw new ValidationError('Invalid input')
       }
 
       const { email, code } = validation.data
@@ -214,16 +209,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Invalid action' },
-      { status: 400 }
-    )
+    throw new ValidationError('Invalid action')
 
   } catch (error) {
-    console.error('Passwordless API error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    )
+    return ApiErrorHandler.handle(error)
   }
 }

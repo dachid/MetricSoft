@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -12,7 +11,7 @@ async function main() {
       create: {
         name: 'Super Administrator',
         code: 'SUPER_ADMIN',
-        description: 'Full system access',
+        description: 'Full system access including tenant configuration',
         permissions: ['*'],
         isSystem: true
       }
@@ -23,8 +22,8 @@ async function main() {
       create: {
         name: 'Strategy Team',
         code: 'STRATEGY_TEAM',
-        description: 'Strategic oversight and KPI management',
-        permissions: ['read:all_kpis', 'write:all_kpis', 'manage:cascades', 'view:reports'],
+        description: 'Strategic oversight, KPI management, and tenant configuration access',
+        permissions: ['read:all_kpis', 'write:all_kpis', 'manage:cascades', 'view:reports', 'manage:tenant_settings'],
         isSystem: true
       }
     }),
@@ -72,16 +71,12 @@ async function main() {
     }
   })
 
-  // Create demo users
-  const adminPassword = await bcrypt.hash('admin123', 12)
-  const userPassword = await bcrypt.hash('user123', 12)
-
+  // Create demo users with proper authentication model (passwordless)
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@metricsoft.com' },
     update: {},
     create: {
       email: 'admin@metricsoft.com',
-      password: adminPassword,
       name: 'Admin User',
       tenantId: tenant.id
     }
@@ -92,8 +87,18 @@ async function main() {
     update: {},
     create: {
       email: 'user@metricsoft.com',
-      password: userPassword,
       name: 'Regular User',
+      tenantId: tenant.id
+    }
+  })
+
+  // Create the specific test user daveed_8@yahoo.com with STRATEGY_TEAM role
+  const testUser = await prisma.user.upsert({
+    where: { email: 'daveed_8@yahoo.com' },
+    update: {},
+    create: {
+      email: 'daveed_8@yahoo.com',
+      name: 'David Test User',
       tenantId: tenant.id
     }
   })
@@ -131,11 +136,60 @@ async function main() {
     }
   })
 
+  // Give test user STRATEGY_TEAM role for tenant settings access
+  await prisma.userRole.upsert({
+    where: {
+      userId_tenantId_roleId: {
+        userId: testUser.id,
+        tenantId: tenant.id,
+        roleId: roles[1].id // Strategy Team
+      }
+    },
+    update: {},
+    create: {
+      userId: testUser.id,
+      tenantId: tenant.id,
+      roleId: roles[1].id
+    }
+  })
+
+  // Create tenant settings for the demo tenant
+  await prisma.tenantSettings.upsert({
+    where: { tenantId: tenant.id },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      terminology: {
+        perspectives: 'Strategic Perspectives',
+        objectives: 'Strategic Objectives',
+        kpis: 'Key Performance Indicators',
+        targets: 'Performance Targets',
+        initiatives: 'Strategic Initiatives'
+      },
+      fiscalYearStart: new Date('2024-01-01'),
+      periods: [],
+      branding: {
+        primaryColor: '#3B82F6',
+        companyName: 'Demo Organization',
+        logoUrl: ''
+      },
+      setupCompleted: false,
+      setupStep: 1
+    }
+  })
+
   console.log('Database seeded successfully!')
   console.log('Demo tenant:', tenant.name)
   console.log('Demo users created:')
-  console.log('- Admin: admin@metricsoft.com / admin123')
-  console.log('- User: user@metricsoft.com / user123')
+  console.log('- Admin: admin@metricsoft.com (SUPER_ADMIN)')
+  console.log('- User: user@metricsoft.com (EMPLOYEE)')
+  console.log('- Test User: daveed_8@yahoo.com (STRATEGY_TEAM) - Can access tenant settings!')
+  console.log('')
+  console.log('Role permissions for tenant settings:')
+  console.log('- SUPER_ADMIN: Full system access (✅ can manage tenant settings)')
+  console.log('- STRATEGY_TEAM: Strategic oversight (✅ can manage tenant settings)')
+  console.log('- KPI_CHAMP: Department level (❌ cannot manage tenant settings)')
+  console.log('- EMPLOYEE: Individual level (❌ cannot manage tenant settings)')
 }
 
 main()

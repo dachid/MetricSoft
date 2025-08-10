@@ -104,8 +104,8 @@ export default function LoginPage() {
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
                       <div className="text-sm text-red-700">
-                        {error}
-                        {error.includes('No account found') && (
+                        {typeof error === 'string' ? error : (error as any)?.message || 'An error occurred'}
+                        {(typeof error === 'string' ? error : (error as any)?.message || '').includes('No account found') && (
                           <div className="mt-2 p-3 bg-red-100 rounded border-l-4 border-red-400">
                             <div className="font-medium text-red-800">Account Not Found</div>
                             <div className="text-red-700 mt-1">

@@ -97,13 +97,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await authApi.sendPasswordlessCode(request)
       
       if (!result.success) {
-        return { error: result.error || 'Failed to send code' }
+        // Handle both string and object errors
+        const errorMessage = typeof result.error === 'string' 
+          ? result.error 
+          : (result.error as any)?.message || 'Failed to send code'
+        return { error: errorMessage }
       }
       
       return {}
     } catch (error: any) {
       console.error('Send passwordless code error:', error)
-      return { error: error.response?.data?.error || 'An unexpected error occurred' }
+      // Handle axios error structure and new error structure
+      const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.error || 
+                           error.message ||
+                           'An unexpected error occurred'
+      return { error: errorMessage }
     }
   }
 
@@ -113,7 +122,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await authApi.verifyPasswordlessCode(request)
       
       if (!result.success || !result.data) {
-        return { error: result.error || 'Verification failed' }
+        const errorMessage = typeof result.error === 'string' 
+          ? result.error 
+          : (result.error as any)?.message || 'Verification failed'
+        return { error: errorMessage }
       }
 
       const { user, token } = result.data
@@ -126,7 +138,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {}
     } catch (error: any) {
       console.error('Verify passwordless code error:', error)
-      return { error: error.response?.data?.error || 'An unexpected error occurred' }
+      const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.error || 
+                           error.message ||
+                           'An unexpected error occurred'
+      return { error: errorMessage }
     } finally {
       setLoading(false)
     }
