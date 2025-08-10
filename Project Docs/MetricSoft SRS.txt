@@ -1,0 +1,605 @@
+MetricSoft — Software Requirements Specification (SRS)
+Document Version: 1.0
+Date: 2025-08-09
+Owner: Product & Engineering (MetricSoft)
+________________________________________
+0. Revision History
+Version	Date	Author	Summary of Changes
+0.1	2025-08-09	Product	Initial draft SRS compiled from Concept & Use Case documents
+1.0	2025-08-09	Eng	Baseline for implementation
+________________________________________
+1. Introduction
+1.1 Purpose
+This SRS defines the requirements for MetricSoft, a centralized performance management system that aligns organizational strategy with departmental, team (optional), and individual performance through cascading KPIs. It specifies functional and non-functional requirements to guide design, development, testing, and operations.
+1.2 Scope
+MetricSoft enables:
+•	Configurable organization structures (Org → Department → [Team] → Individual) with mixed-level cascading (team layer optional per department).
+•	Classic Perspectives → Objectives → KPIs → Targets → Initiatives hierarchy with custom terminology per tenant.
+•	KPI creation, library management, cascading, ownership, data entry, evidence attachment.
+•	Review/approval workflows, versioning, and change requests with effective dating.
+•	Dashboards, reporting, alerts/notifications, and integrations (HRIS/CRM/ERP/BI).
+1.3 References
+•	MetricSoft Concept Document (Flexible KPI Framework with Cascading and Mixed Levels + Classic Structure + Custom Terminology)
+•	MetricSoft Use Case & User Story Document
+1.4 Definitions, Acronyms, Abbreviations
+•	Perspective (aka Theme/Pillar): Strategic grouping of objectives.
+•	Objective (aka Goal/Outcome): Desired result.
+•	KPI (aka Metric): Quantitative indicator tied to an objective.
+•	Target: Expected threshold for a KPI within a period.
+•	Initiative (aka Project/Action): Work item to influence KPIs.
+•	Cascade: Linking of lower-level items to higher-level parent items.
+•	Mixed Levels: Optional inclusion of a team layer between department and individual.
+•	Evidence: Document/link supporting a KPI value.
+•	Tenant: A client organization using MetricSoft.
+1.5 Stakeholders
+•	Consultant (External Implementer)
+•	Super Administrator (Org IT)
+•	Strategy Team (Corporate/PMO)
+•	Management Team (Executives)
+•	KPI Champ (Department Owner)
+•	Team Lead (optional)
+•	Line Manager
+•	Job Owner / Employee
+•	Data Steward / Integration Service
+•	BI Analyst / Finance Controller
+________________________________________
+2. Overall Description
+2.1 Product Perspective
+MetricSoft is a multi-tenant, web-based application with APIs for data ingestion and export. It integrates with enterprise systems and BI tools. The system adopts a modular microservices/service-oriented architecture: Identity & Access, Core Performance (Catalog, Cascading, Data Entry), Workflow (Review/Change), Reporting & Analytics, Integrations, Notifications, and Audit/Compliance.
+2.2 Product Functions (Summary)
+1.	Organization & Terminology configuration
+2.	Structure management with mixed-level control
+3.	KPI library, creation, and assignment
+4.	Cascading engine (top-down alignment)
+5.	Targets & Initiatives management
+6.	Data entry (manual/import/API) + evidence
+7.	Review & approval workflow
+8.	Change requests & effective-dated versioning
+9.	Dashboards, analytics, and exports
+10.	Alerts & notifications
+11.	Integrations (HRIS/CRM/ERP/BI/Data warehouse)
+12.	Role-based access control & audit
+2.3 User Classes & Characteristics
+•	Consultant: High system privileges during onboarding; bulk upload skills.
+•	Super Admin: Full tenant configuration; security-aware.
+•	Strategy Team: Strategic oversight; familiar with KPIs and cascades.
+•	Management Team: Executive reviewers; consumes dashboards; approvals.
+•	KPI Champ / Team Lead: Frequent data entry & evidence; manages sub-levels.
+•	Line Manager: Reviewer/coach; oversees direct reports.
+•	Job Owner / Employee: Simple, guided updates; mobile-friendly.
+•	Data Steward/Integration: Technical; API/SFTP operations.
+•	BI Analyst/Finance: Advanced filtering, exports, modeling.
+2.4 Operating Environment
+•	Web app (modern browsers), responsive for desktop/tablet; limited mobile support for updates.
+•	APIs over HTTPS (REST/JSON). Optional SFTP and CSV/Excel import.
+•	Cloud-hosted (e.g., Azure/AWS/GCP) with managed DB and object storage.
+2.5 Constraints
+•	Multi-tenant data isolation.
+•	Role-based authorization (least privilege).
+•	Compliance (SOC 2 readiness; GDPR where applicable; regional data residency if required).
+•	Evidence file size & type limits; rate limits for APIs.
+2.6 Assumptions & Dependencies
+•	Upstream systems provide identifiers for org units and users.
+•	BI tooling (e.g., Power BI/Tableau) may consume exports.
+•	Email/SMS/Chat providers available for notifications.
+________________________________________
+3. System Features & Detailed Requirements
+Each feature is labeled F# with functional requirements (FR#) and acceptance criteria (AC#).
+F1. Tenant Setup & Terminology Configuration
+Description: Configure tenant branding, fiscal/calendar settings, periods, and rename classic elements (e.g., Perspectives→Themes).
+•	FR1.1: Admin can set fiscal year start (month/day) and define periods (monthly/quarterly/annual/custom).
+•	FR1.2: Admin can rename labels for Perspectives/Objectives/KPIs/Targets/Initiatives and surface these across UI/API/exports.
+•	FR1.3: Admin can define and manage a catalog of Perspectives with codes and descriptions.
+•	FR1.4: Admin can define scoring models (e.g., RAG thresholds, weighted scoring).
+•	FR1.5: Admin can configure default evidence rules per KPI type (mandatory/optional; allowed MIME types; max size).
+•	AC1.1: Changing labels updates UI and exports immediately without data loss.
+•	AC1.2: RAG colors compute correctly for 10 sample KPIs per thresholds.
+F2. Organizational Structure & Mixed Levels
+Description: Model Org → Dept → [Team] → Individual with per-department toggle for team layer.
+•	FR2.1: Admin can create org units with metadata (code, name, parent, type, active dates).
+•	FR2.2: Admin can enable/disable Team layer per department; changes effective from a chosen date.
+•	FR2.3: Bulk import structure via CSV/Excel/API with validation and preview.
+•	FR2.4: Users assigned to org units with roles; supports re-org with history (effective-dated).
+•	AC2.1: When Team layer is off, cascading skips Team and links Dept→Individual.
+•	AC2.2: Re-org preserves historical KPI lineage for periods before the change.
+F3. KPI Library & Object Model
+Description: Central catalog for Perspectives, Objectives, KPIs, Targets, Initiatives.
+•	FR3.1: Create/maintain Objectives; link to one Perspective; effective-dated.
+•	FR3.2: Create KPIs with attributes: code, name, description, unit, direction (higher-is-better/lower-is-better/target-is-best), calculation method, frequency, owner role, data source (manual/API), evidence policy, tags.
+•	FR3.3: Define Targets per period and level with tolerance bands (green/amber/red).
+•	FR3.4: Define Initiatives; link to Objectives/KPIs; lifecycle (Proposed→Approved→In Progress→Completed→Canceled).
+•	FR3.5: Library export/import for bulk setup.
+•	AC3.1: KPI JSON validates against schema; targets resolve by level and period.
+F4. Cascading Engine
+Description: Cascade Objectives/KPIs/Targets from parent to child levels with alignment links.
+•	FR4.1: Allow manual or rule-driven cascade (percentage allocation, equal split, or custom formula).
+•	FR4.2: Maintain CascadeLink entities (ParentKPI→ChildKPI) with weights.
+•	FR4.3: Support “skip-level” cascade when Team layer disabled.
+•	FR4.4: Visualize cascade tree with status (RAG), drill-down, and impact view.
+•	AC4.1: Child KPI totals roll up according to weights; rounding rules documented.
+F5. Assignment & Ownership
+•	FR5.1: Assign KPI owners per level (Strategy Team/KPI Champ/Team Lead/Employee).
+•	FR5.2: Support delegate and temporary ownership (e.g., leave cover) with date bounds.
+•	FR5.3: Notify owners of assignments and changes.
+•	AC5.1: Owner dashboard shows all assigned KPIs by period and status.
+F6. Data Entry & Evidence Capture
+•	FR6.1: Owners can enter KPIActual values by period; supports partial period entry.
+•	FR6.2: Attach evidence files or links; enforce evidence policy.
+•	FR6.3: Bulk upload actuals via CSV/Excel/API; preview & validate before commit.
+•	FR6.4: Auto-calc derived KPIs (formula-based) after import.
+•	FR6.5: Lock entry after submission deadline unless reopened by reviewer.
+•	AC6.1: Validation errors show row-level details for bulk uploads.
+F7. Review & Approval Workflow
+•	FR7.1: Workflow states for KPI actuals: Draft → Submitted → Returned → Approved.
+•	FR7.2: Reviewers (Line Manager/Strategy/Management) can comment, request changes, or approve.
+•	FR7.3: Generate review reports (PDF/Excel) by org unit and period.
+•	FR7.4: Support multi-step approval configuration (e.g., Dept→Strategy→Exec).
+•	AC7.1: Audit trail captures actor, action, timestamp, and before/after values.
+F8. Change Requests & Versioning
+•	FR8.1: Any KPI owner can submit a Change Request (CR) to modify KPI attributes/targets/owners with justification and effective date.
+•	FR8.2: CR states: Proposed → Under Review → Approved/Rejected → Implemented.
+•	FR8.3: Approved CR applies prospectively; historical actuals remain intact.
+•	FR8.4: Notifications to affected stakeholders on decision.
+•	AC8.1: Version history UI displays side-by-side diffs and effective dates.
+F9. Reporting, Dashboards & Analytics
+•	FR9.1: Pre-built dashboards: Org Overview, Department Drilldown, RAG Heatmap, Trend Analysis, Variance vs Target, Cascade Impact, Perspective Balance.
+•	FR9.2: Filtering by period, perspective, org unit, owner, tag, and status.
+•	FR9.3: Export to PDF/Excel/CSV; schedule report emails.
+•	FR9.4: Optional BI connector (star schema export) with facts (Actuals) and dims (Date, OrgUnit, KPI, Owner, Perspective).
+•	AC9.1: Variance and RAG calculations match configured thresholds.
+F10. Alerts & Notifications
+•	FR10.1: Configure alert rules (e.g., missing data, below target, deadline reminders, CR decisions).
+•	FR10.2: Channels: Email, MS Teams/Slack, SMS (where enabled), in-app.
+•	FR10.3: Digest summaries and per-event alerts; quiet hours support.
+•	AC10.1: Opt-in/out per alert category at user and tenant levels.
+F11. Integrations & Data Ingestion
+•	FR11.1: REST API for pushing actuals/evidence metadata; API keys/OAuth2.
+•	FR11.2: SFTP nightly CSV drop option with schema validation.
+•	FR11.3: Webhooks for review/approval events and CR decisions.
+•	FR11.4: Connectors/templates for HRIS/CRM/ERP/BI (configurable mappings).
+•	AC11.1: Failed ingestions produce error reports and retries with backoff.
+F12. Access Control & Identity
+•	FR12.1: SSO (OIDC/SAML) and local login; MFA optional.
+•	FR12.2: Role-based access control (RBAC) with scope by org unit.
+•	FR12.3: Predefined roles mapped to actors; custom roles allowed.
+•	FR12.4: Impersonation/audited support for Consultants (time-bound).
+•	AC12.1: Permission matrix tests pass for CRUD and review actions across roles.
+F13. Auditability & Compliance
+•	FR13.1: Immutable audit log for auth, CRUD on catalog data, submissions, approvals, CRs, and configuration changes.
+•	FR13.2: Evidence stored in object storage with checksums and AV scan.
+•	FR13.3: Data retention & legal hold policies per tenant.
+F14. Localization & Accessibility
+•	FR14.1: i18n for UI labels; locale-specific number/date formats.
+•	FR14.2: WCAG 2.1 AA accessibility for critical flows.
+F15. Tenant Theming & White Labeling (Fully Customizable SaaS)
+Goal: Allow System Admins to fully customize MetricSoft per client (tenant) — colors, logos, typography, auth pages, emails, and report exports — so the product operates as a white label SaaS.
+Functional Requirements
+•	FR15.1 Brand Kit Upload: Upload/manage brand assets per tenant: primary/secondary/accent colors; logos (light/dark); favicon; login/hero image; optional brand fonts from an approved list; layout density (compact/comfortable).
+•	FR15.2 Theme Tokens: All UI styles are driven by tenant scoped design tokens (e.g., --color-primary, --font-body, --radius). Tokens persist in DB; assets in object storage/CDN with cache busting.
+•	FR15.3 Draft → Preview → Publish: Edit themes in draft; live in app preview (sandboxed) without impacting users; publish performs atomic switch with version history and one click rollback.
+•	FR15.4 Auth Page Branding: Sign in/reset/invite pages display tenant logo/colors/background.
+•	FR15.5 Email Branding: Configure sender name/reply to, header logo/color, footer/legal text; per locale templates; test send.
+•	FR15.6 Report Branding: PDF/Excel exports include tenant logo, brand colors, header/footer, optional watermark and cover page.
+•	FR15.7 Custom Domain (optional): Map a custom domain (e.g., performance.acme.com) with automated TLS (ACME) and fallback to default domain.
+•	FR15.8 Roles & Audit: Only tenant Super Admins/Brand Admins manage branding; all actions audited.
+•	FR15.9 Accessibility Guardrails: Validate color contrast to WCAG 2.1 AA; provide auto suggested compliant palettes.
+•	FR15.10 Safe Defaults & Fallback: Missing/corrupt assets revert to MetricSoft defaults; publish is transactional.
+Acceptance Criteria
+•	AC15.1 Theme changes (logo, colors, favicon) reflect across the tenant UI (including auth pages) within 60 seconds, no logout required.
+•	AC15.2 Newly triggered emails show the updated header/footer/logo.
+•	AC15.3 PDF exports (Overview/Drilldown) render the configured logo and header color.
+•	AC15.4 Contrast validator blocks non compliant palettes and offers alternatives.
+•	AC15.5 Publish/rollback works atomically with version history.
+•	AC15.6 Custom domain verification/cert issuance surfaces status/errors; safe fallback to default domain.
+API (Additions)
+•	GET /api/v1/themes — list brand profiles
+•	POST /api/v1/themes — create/update draft theme
+•	POST /api/v1/themes/{id}/publish — publish theme
+•	POST /api/v1/themes/{id}/assets/sign — signed URL for asset upload
+•	POST /api/v1/themes/{id}/preview — start a preview session
+•	POST /api/v1/domains — request custom domain & certificate
+•	GET /api/v1/domains/status — check domain/cert status
+Data Model (Additions)
+•	Theme(Id, TenantId, Name, Status{DRAFT,PUBLISHED}, Tokens(JSON), Variants(JSON: light/dark), CreatedBy, CreatedAt)
+•	ThemeAsset(Id, ThemeId, Type{LOGO_LIGHT,LOGO_DARK,FAVICON,AUTH_HERO}, Url, MimeType, SizeBytes, Checksum)
+•	CustomDomain(Id, TenantId, Hostname, VerificationStatus, CertStatus, LastCheckedAt)
+Non Functional (Additions)
+•	Theme resolution adds <150ms server processing; first paint adds <50KB due to branding.
+•	AV scan + MIME/type enforcement for uploaded brand assets; CDN caching for assets.
+Roadmap Placement
+•	MVP: Logo, primary color, favicon, basic auth page + report header/footer.
+•	Phase 2: Draft/preview/publish with versioning, email template branding, contrast guardrails.
+•	Phase 3: Custom domain automation, multi brand profiles per tenant (for subsidiaries).
+
+
+________________________________________
+4. External Interface Requirements
+4.1 User Interface (UI)
+•	Navigation: Home (My KPIs), Reviews, Cascades, Library, Reports, Admin.
+•	Dashboards: Tiles (RAG), trend charts, variance bars, cascade tree visualization.
+•	Forms: Wizard for KPI creation and cascade; bulk upload preview grid.
+•	Evidence: Drag-and-drop with type/size validation and virus scanning.
+4.2 API (Sample Endpoints)
+•	POST /api/v1/kpis — create KPI
+•	GET /api/v1/kpis/{id} — fetch KPI
+•	POST /api/v1/kpis/{id}/targets — set targets
+•	POST /api/v1/kpis/{id}/actuals — submit actual
+•	POST /api/v1/actuals/import — bulk import
+•	POST /api/v1/cascades — create cascade links (parent→children)
+•	POST /api/v1/change-requests — submit CR
+•	POST /api/v1/reviews/{id}/approve — approve
+•	GET /api/v1/reports/overview?period=2025Q1 — report snapshot
+•	Webhooks: review.approved, review.returned, kpi.changed, cr.approved
+4.3 Import/Export Schemas
+•	CSV/Excel Actuals: OrgUnitCode,KpiCode,Period,Value,Comment,EvidenceURL
+•	Library Import: Type(Objective/KPI/Target/Initiative),Code,Name,ParentCode,...
+4.4 Notifications & Channels
+•	SMTP/Graph API (Email), Slack/Teams webhooks, SMS provider (optional), in-app toasts and inbox.
+________________________________________
+5. Data Requirements
+5.1 Core Entities (ER Overview)
+•	Tenant(Id, Name, Settings)
+•	OrgUnit(Id, Code, Name, Type, ParentId, ActiveFrom, ActiveTo)
+•	User(Id, Name, Email, Roles)
+•	Perspective(Id, Code, Name)
+•	Objective(Id, Code, Name, PerspectiveId, EffectiveFrom, EffectiveTo)
+•	KPI(Id, Code, Name, Unit, Direction, CalcMethod, Frequency, Source, EvidencePolicy, Tags)
+•	Target(Id, KpiId, LevelType, OrgUnitId?, Period, TargetValue, GreenFrom, AmberFrom)
+•	Initiative(Id, Code, Name, Status, OwnerId)
+•	CascadeLink(Id, ParentKpiId, ChildKpiId, Weight)
+•	KPIActual(Id, KpiId, OrgUnitId?, UserId?, Period, Value, Status, SubmittedAt)
+•	Evidence(Id, ActualId, Url, FileMeta, Checksum)
+•	Review(Id, ActualId, ReviewerId, State, Comments, Timestamps)
+•	ChangeRequest(Id, EntityType, EntityId, ProposedChanges(JSON), Justification, State, EffectiveDate)
+•	AuditEvent(Id, ActorId, Action, Entity, Before(JSON), After(JSON), Timestamp)
+5.2 Data Dictionary (selected)
+•	Direction: enum {UP, DOWN, TARGET}
+•	CalcMethod: enum {MANUAL, FORMULA, AGGREGATE}
+•	Frequency: enum {WEEKLY, MONTHLY, QUARTERLY, YEARLY}
+•	Status (Actual): enum {DRAFT, SUBMITTED, RETURNED, APPROVED}
+5.3 Data Retention & Archival
+•	Default retention: 7 years for KPI actuals, reviews, and audit. Evidence retention configurable (e.g., 3–7 years) with legal hold override.
+5.4 Data Quality Rules
+•	Required: Code uniqueness per entity type; period format validation; numeric parsing with locale.
+•	Cascade sum check: child weights per parent must equal 100% (±0.1%).
+5.5 Versioning
+•	Effective-dated records for Objectives/KPIs/Targets and OrgUnit membership; immutable audit trail for changes.
+________________________________________
+6. Workflows & Diagrams
+6.1 System Context (Mermaid)
+flowchart LR
+  A[Users & Roles] -->|Web UI| B(MetricSoft App)
+  C[HRIS/CRM/ERP] -->|API/SFTP| B
+  B --> D[(Data Store)]
+  B --> E[Object Storage (Evidence)]
+  B --> F[Notifications]
+  B --> G[BI/Exports]
+6.2 Component View (Mermaid)
+flowchart TB
+  subgraph UI
+    FE[Web Frontend]
+  end
+  subgraph Services
+    ID[Identity & RBAC]
+    CFG[Config & Terminology]
+    LIB[Catalog: Perspectives/Objectives/KPIs]
+    CAS[Cascading Engine]
+    ENT[Data Entry]
+    REV[Review & Approvals]
+    CR[Change Requests]
+    RPT[Reporting API]
+    INT[Integrations & Ingestion]
+    NTF[Notifications]
+    AUD[Audit & Compliance]
+  end
+  DB[(Relational DB)]
+  OS[(Object Storage)]
+
+  FE --> ID
+  FE --> CFG
+  FE --> LIB
+  FE --> CAS
+  FE --> ENT
+  FE --> REV
+  FE --> CR
+  FE --> RPT
+
+  INT --> ENT
+  INT --> LIB
+  NTF --> FE
+  Services --> DB
+  ENT --> OS
+  AUD --> DB
+6.3 Sequence — Consultant Initial KPI Upload
+sequenceDiagram
+  participant C as Consultant
+  participant UI as Web UI
+  participant LIB as Catalog Service
+  participant CAS as Cascading Engine
+  participant DB as DB
+  C->>UI: Upload KPI library (Excel/CSV)
+  UI->>LIB: Validate & import
+  LIB->>DB: Persist catalog entities
+  LIB->>CAS: Trigger cascade generation
+  CAS->>DB: Create CascadeLink & assignments
+  CAS-->>UI: Summary + notifications
+6.4 Sequence — Department Data Entry & Approval
+sequenceDiagram
+  participant K as KPI Champ
+  participant UI as Web UI
+  participant ENT as Data Entry
+  participant REV as Review Service
+  participant DB as DB
+  K->>UI: Enter actual + evidence
+  UI->>ENT: Save DRAFT
+  ENT->>DB: Persist
+  K->>UI: Submit
+  UI->>REV: Change state to SUBMITTED
+  REV->>DB: Update & audit
+  REV-->>UI: Reviewer notified
+6.5 Sequence — KPI Change Request
+sequenceDiagram
+  participant O as KPI Owner
+  participant UI as Web UI
+  participant CR as Change Request Service
+  participant REV as Reviewer
+  participant DB as DB
+  O->>UI: Create CR (new target, effective date)
+  UI->>CR: Submit CR
+  CR->>DB: Persist + route
+  REV-->>CR: Approve/Reject
+  CR->>DB: Apply if approved (versioned)
+  CR-->>UI: Notify stakeholders
+6.6 State Machine — KPI Actual
+stateDiagram-v2
+  [*] --> DRAFT
+  DRAFT --> SUBMITTED: submit
+  SUBMITTED --> RETURNED: request_changes
+  RETURNED --> DRAFT: edit
+  SUBMITTED --> APPROVED: approve
+  APPROVED --> [*]
+________________________________________
+7. Non-Functional Requirements (NFRs)
+7.1 Performance & Scalability
+•	NFR-P1: 95th percentile page load < 2.5s for dashboard views at 10k KPIs per tenant.
+•	NFR-P2: Bulk import of 50k records completes within 10 minutes with progress & partial failure reporting.
+•	NFR-P3: Support 5,000 concurrent active users across tenants.
+7.2 Availability & Reliability
+•	NFR-A1: 99.9% monthly availability target; planned maintenance windows communicated.
+•	NFR-A2: RPO ≤ 15 minutes; RTO ≤ 1 hour; daily backups + point-in-time recovery.
+7.3 Security & Privacy
+•	NFR-S1: TLS 1.2+ in transit; AES-256 at rest.
+•	NFR-S2: Row-level (tenant) isolation; role-scoped access to org units.
+•	NFR-S3: SSO (OIDC/SAML); optional MFA; password policy if local.
+•	NFR-S4: Evidence AV scanning; content-type validation; signed URLs with expiry.
+•	NFR-S5: Audit logging immutable and exportable.
+7.4 Usability & Accessibility
+•	NFR-U1: Onboarding wizards and inline help; contextual tooltips.
+•	NFR-U2: WCAG 2.1 AA compliance for forms and dashboards.
+7.5 Observability
+•	NFR-O1: Centralized logging with correlation IDs; error budgets.
+•	NFR-O2: Metrics (ingestion successes/failures, workflow durations) and traces.
+7.6 Maintainability & Extensibility
+•	NFR-M1: Services independently deployable; semantic versioning for APIs.
+•	NFR-M2: Configuration as code for tenant defaults where feasible.
+7.7 Localization
+•	NFR-L1: Server/store values locale-neutral; render locale-aware formatting.
+________________________________________
+8. Release Scope & Roadmap
+8.1 MVP (Phase 1)
+•	Tenant setup & terminology
+•	Org structure with mixed-level toggle
+•	Catalog (Objectives/KPIs/Targets)
+•	Cascading (manual + equal split)
+•	Data entry + evidence
+•	Single-step review/approval
+•	Basic dashboards & exports
+•	Email notifications
+•	Audit log
+8.2 Phase 2
+•	Change requests & versioning
+•	Multi-step approvals
+•	Alert rules (below target; missing data)
+•	Connectors (HRIS/CRM/ERP) + SFTP ingestion
+•	Slack/Teams notifications; scheduled reports
+8.3 Phase 3
+•	Advanced cascade weights & formulas
+•	BI star schema export; variance analysis templates
+•	Delegations; temporary ownership
+•	Access policies by attributes (ABAC extension)
+8.4 Out of Scope (for now)
+•	Native mobile apps
+•	Real-time stream ingestion (beyond batch/API)
+________________________________________
+9. Acceptance & High-Level Test Cases
+•	TC-01: Rename classic terms and verify across UI/API/exports.
+•	TC-02: Enable/disable Team layer and verify cascade paths.
+•	TC-03: Import catalog and auto-create cascades; validate weights.
+•	TC-04: Enter & submit actuals; reviewer returns and approves; audit entries present.
+•	TC-05: Change request for target with effective future date; history preserved.
+•	TC-06: Dashboard variance & RAG correct for sample dataset.
+•	TC-07: Bulk import 50k actuals; partial failures reported and retried.
+•	TC-08: RBAC matrix enforced for each actor scenario.
+________________________________________
+10. Roles & Permissions Matrix (Excerpt)
+Role	Setup	Structure	Catalog	Cascade	Actuals	Review	CR	Reports	Admin
+Consultant	R/W	R/W	R/W	R/W	–	–	–	R	Impersonate (time-bound)
+Super Admin	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W	R/W
+Strategy Team	R	R	R/W	R/W	R/W	R/W	R/W	R/W	–
+Management Team	–	–	R	R	–	Approve	–	R/W	–
+KPI Champ	–	–	R	R	R/W	Submit	CR	R	–
+Team Lead	–	–	R	R	R/W	Submit	CR	R	–
+Line Manager	–	–	R	R	–	Review	–	R	–
+Employee	–	–	R	R	R/W (own)	Submit	CR (own)	R (own)	–
+Data Steward/Integration	–	–	–	–	API/Bulk	–	–	–	–
+BI Analyst/Finance	–	–	R	R	–	–	–	R/W	–
+Legend: R=Read, W=Write, CR=Create Change Request.
+________________________________________
+11. Example Payloads
+11.1 KPI (JSON)
+{
+  "code": "KPI-ONB-AVG-DAYS",
+  "name": "Average Onboarding Days",
+  "unit": "days",
+  "direction": "DOWN",
+  "calcMethod": "MANUAL",
+  "frequency": "MONTHLY",
+  "source": "MANUAL",
+  "evidencePolicy": {"required": true, "maxSizeMB": 20, "mimeTypes": ["application/pdf","image/png","image/jpeg"]},
+  "tags": ["Operational Excellence","Onboarding"]
+}
+11.2 Actuals Import (CSV)
+OrgUnitCode,KpiCode,Period,Value,Comment,EvidenceURL
+OPS01,KPI-ONB-AVG-DAYS,2025-06,7.5,Automation improved,https://evidence/bucket/file1.pdf
+________________________________________
+12. Glossary (Tenant-Customizable)
+•	Perspectives ↔ Themes/Pillars/Focus Areas
+•	Objectives ↔ Goals/Outcomes/Results
+•	KPIs ↔ Metrics/Success Indicators
+•	Targets ↔ Benchmarks/Thresholds/Standards
+•	Initiatives ↔ Projects/Programs/Action Plans
+________________________________________
+13. Enhanced Requirements: Fully Optional Levels & Custom Definition Framework
+
+13.1 Feature F16: Fully Optional Organizational Levels
+Description: Extend mixed-level concept to make all organizational levels optional except Organization, and support unlimited custom levels.
+
+Functional Requirements:
+•	FR16.1: Admin can enable/disable any organizational level (Department, Team, Individual) per tenant with Organization as the only mandatory level.
+•	FR16.2: Admin can create unlimited custom organizational levels with configurable names, positions in hierarchy, and metadata.
+•	FR16.3: Custom levels can be inserted at any point in the organizational hierarchy (e.g., Region between Organization and Department).
+•	FR16.4: Cascading engine automatically adapts to active levels, supporting skip-level cascading for any level combination.
+•	FR16.5: User assignment and role scoping works with any active level configuration.
+•	FR16.6: Bulk import supports flexible level structures with validation against tenant's active levels.
+
+Acceptance Criteria:
+•	AC16.1: Tenant with Organization → Individual structure (no Department/Team) functions correctly with direct cascading.
+•	AC16.2: Custom level "Region" inserted between Organization and Department cascades KPIs appropriately.
+•	AC16.3: Disabling Department level automatically updates existing cascades to skip to next active level.
+•	AC16.4: UI navigation and breadcrumbs adapt to show only active levels for the tenant.
+
+Database Schema Additions:
+```sql
+CREATE TABLE level_definitions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID REFERENCES tenants(id),
+  name VARCHAR(100) NOT NULL,
+  code VARCHAR(50) NOT NULL,
+  level_type VARCHAR(20) NOT NULL, -- 'STANDARD', 'CUSTOM'
+  hierarchy_position INTEGER NOT NULL, -- 1=Org, 2=Custom/Dept, 3=Custom/Team, 4=Individual
+  is_active BOOLEAN DEFAULT true,
+  is_mandatory BOOLEAN DEFAULT false, -- only true for Organization
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Update org_units to reference level_definition
+ALTER TABLE org_units ADD COLUMN level_definition_id UUID REFERENCES level_definitions(id);
+```
+
+13.2 Feature F17: Custom Definition Framework
+Description: Allow creation of custom definition types beyond classic Perspectives/Objectives/KPIs/Targets/Initiatives, with only KPIs and Targets mandatory.
+
+Functional Requirements:
+•	FR17.1: Admin can enable/disable classic definition types (Perspectives, Objectives, Initiatives) per tenant, with KPIs and Targets always mandatory.
+•	FR17.2: Admin can create unlimited custom definition types with configurable names, attributes, validation rules, and lifecycle states.
+•	FR17.3: Custom definitions support cascade relationships to any organizational level and can be parents/children of other definition types.
+•	FR17.4: Definition type hierarchy is configurable per tenant (e.g., Outcomes → Key Results → Targets vs. Themes → Objectives → KPIs → Targets).
+•	FR17.5: Each definition type can have custom attributes (text, number, date, dropdown, tags) defined by the admin.
+•	FR17.6: Import/export functionality adapts to tenant's active definition types and custom attributes.
+
+Acceptance Criteria:
+•	AC17.1: Tenant with only KPIs and Targets (no Perspectives/Objectives/Initiatives) functions correctly.
+•	AC17.2: Custom definition type "Key Results" can be created with custom attributes and cascades properly.
+•	AC17.3: Definition type hierarchy Outcomes → Success Metrics → Targets works with proper cascading.
+•	AC17.4: UI forms and wizards adapt to show only active definition types and their custom attributes.
+
+Database Schema Additions:
+```sql
+CREATE TABLE definition_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID REFERENCES tenants(id),
+  name VARCHAR(100) NOT NULL,
+  code VARCHAR(50) NOT NULL,
+  type_category VARCHAR(20) NOT NULL, -- 'STANDARD', 'CUSTOM'
+  is_active BOOLEAN DEFAULT true,
+  is_mandatory BOOLEAN DEFAULT false, -- true for KPI and Target
+  hierarchy_level INTEGER NOT NULL, -- defines cascade order
+  custom_attributes JSONB DEFAULT '[]', -- array of attribute definitions
+  validation_rules JSONB DEFAULT '{}',
+  lifecycle_states JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE definition_instances (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID REFERENCES tenants(id),
+  definition_type_id UUID REFERENCES definition_types(id),
+  code VARCHAR(50) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  custom_data JSONB DEFAULT '{}', -- stores custom attribute values
+  parent_id UUID REFERENCES definition_instances(id), -- for hierarchy
+  effective_from DATE DEFAULT CURRENT_DATE,
+  effective_to DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Update existing tables to reference definition_instances for backward compatibility
+ALTER TABLE perspectives ADD COLUMN definition_instance_id UUID REFERENCES definition_instances(id);
+ALTER TABLE objectives ADD COLUMN definition_instance_id UUID REFERENCES definition_instances(id);
+ALTER TABLE initiatives ADD COLUMN definition_instance_id UUID REFERENCES definition_instances(id);
+```
+
+13.3 Feature F18: Dynamic UI Adaptation
+Description: UI automatically adapts to show only active levels and definition types per tenant.
+
+Functional Requirements:
+•	FR18.1: Navigation menus show only active organizational levels and definition types.
+•	FR18.2: Forms and wizards adapt field sets based on active definition types and their custom attributes.
+•	FR18.3: Cascade visualization displays only active levels with appropriate spacing and connections.
+•	FR18.4: Reports and dashboards filter options reflect tenant's active configuration.
+•	FR18.5: Bulk import templates generate based on active levels and definition types.
+
+Acceptance Criteria:
+•	AC18.1: Tenant with custom "Region" level sees it in navigation and org chart.
+•	AC18.2: Tenant without Perspectives never sees Perspective-related UI elements.
+•	AC18.3: Custom definition type "Key Results" appears in creation wizards and forms.
+•	AC18.4: Import template includes columns for custom attributes of active definition types.
+
+13.4 Enhanced API Endpoints
+```
+// Level Management
+GET /api/v1/level-definitions — list active levels for tenant
+POST /api/v1/level-definitions — create/update custom level
+PUT /api/v1/level-definitions/{id}/activate — enable/disable level
+DELETE /api/v1/level-definitions/{id} — delete custom level (with validation)
+
+// Definition Type Management  
+GET /api/v1/definition-types — list active definition types for tenant
+POST /api/v1/definition-types — create custom definition type
+PUT /api/v1/definition-types/{id}/configure — update attributes/validation
+DELETE /api/v1/definition-types/{id} — delete custom type (with migration)
+
+// Dynamic Instance Management
+GET /api/v1/definitions/{type} — list instances of specific definition type
+POST /api/v1/definitions/{type} — create instance with custom attributes
+PUT /api/v1/definitions/{type}/{id}/cascade — manage cascade relationships
+```
+
+13.5 Migration & Backward Compatibility
+•	Existing tenants automatically get all standard levels and definition types enabled
+•	Migration utilities to help convert from standard to custom framework
+•	API versioning ensures existing integrations continue working
+•	Graceful degradation when accessing disabled features
+
+13.6 Enhanced Test Cases
+•	TC-09: Create custom organizational level "Division" and verify cascading works correctly
+•	TC-10: Disable Perspectives and verify UI removes all perspective-related elements
+•	TC-11: Create custom definition type "Outcomes" with custom attributes and test cascade to KPIs
+•	TC-12: Configure Organization → Region → Department structure and verify all functions work
+•	TC-13: Import library with custom definition types and verify correct parsing/validation
+
+This enhanced framework provides ultimate flexibility while maintaining the core strengths of strategic alignment and measurement discipline.
+________________________________________
+End of Document

@@ -1,24 +1,81 @@
 # MetricSoft - Performance Management Platform
 
-A modern, multi-tenant performance management platform built with React, TypeScript, Vite, and Supabase.
+A modern, full-stack performance management and KPI tracking platform built with Next.js, TypeScript, and PostgreSQL.
 
-## Phase 1, Week 1-2: Project Setup & Authentication ✅
+## 🏗️ Architecture
 
-This implementation covers the foundational setup for MetricSoft including:
+MetricSoft uses a **completely decoupled** frontend/backend architecture:
 
-- ✅ Project scaffolding with Vite + React + TypeScript
-- ✅ Authentication system with Prisma ORM (vendor lock-in free!)
-- ✅ Multi-tenant architecture foundation
-- ✅ Protected routing
-- ✅ Basic UI components and styling
-- ✅ Role-based access control structure
+### Backend (`/backend/`)
+- **Framework**: Next.js 14 (API-only mode)
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: JWT with bcryptjs
+- **API**: RESTful endpoints
+- **Port**: 5000
 
-## 🛠 Technology Stack
+### Frontend (`/frontend/`)
+- **Framework**: Next.js 14 (App Router)
+- **UI**: React + TypeScript
+- **Styling**: Tailwind CSS
+- **State**: React Query + Context
+- **Port**: 3000
 
-- **Frontend**: React 18 + TypeScript
-- **Build Tool**: Vite
-- **Authentication**: Custom JWT with Prisma ORM
-- **Database**: PostgreSQL with Prisma
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- PostgreSQL database
+- npm or yarn
+
+### Option 1: Using Root Scripts (Recommended)
+
+1. **Install all dependencies:**
+```bash
+npm install
+npm run install:all
+```
+
+2. **Start both services in development mode:**
+```bash
+npm run dev
+```
+
+This will start:
+- Backend API at `http://localhost:5000`
+- Frontend App at `http://localhost:3000`
+
+3. **Set up the database (first time only):**
+```bash
+npm run db:setup
+```
+
+### Option 2: Manual Setup
+
+### 1. Set up Backend
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+# Edit .env with your database URL
+npm run prisma:migrate
+npm run prisma:seed
+npm run dev
+```
+
+Backend will be running at `http://localhost:5000`
+
+### 2. Set up Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+# Edit .env.local if backend URL is different
+npm run dev
+```
+
+Frontend will be running at `http://localhost:3000`
 - **State Management**: React Query
 - **Routing**: React Router Dom
 - **Styling**: CSS Modules

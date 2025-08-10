@@ -1,0 +1,126 @@
+________________________________________
+MetricSoft Use Case & User Story Document
+1. System Definition
+MetricSoft is a centralized Performance Management System (PMS) designed to align organizational strategy with departmental, team, and individual performance through cascading KPIs. It supports mixed levels (optional team layer) and retains the classic Perspectives → Objectives → KPIs → Targets → Initiatives structure, while allowing custom terminology per organization.
+The system:
+•	Captures performance data at all levels.
+•	Supports KPI cascading from top to bottom.
+•	Allows terminology customization for cultural/industry fit.
+•	Provides real-time dashboards, reviews, and reports.
+•	Manages approvals, versioning, alerts, and evidence attachments.
+________________________________________
+2. Key Actors
+Actor	Description
+Consultant	External implementer responsible for initial KPI library setup and structure mapping.
+Super Administrator (Org IT)	Manages users, roles, structure, and system configuration. Can upload/edit KPIs and cascade data.
+Strategy Team	Org-level evaluators/reviewers responsible for entering organization KPIs, reviewing departments, and ensuring alignment.
+Management Team	Org-level reviewers responsible for reviewing and approving corporate KPI results.
+KPI Champ	Department-level evaluator responsible for updating departmental KPI data and evidence.
+Team Lead (optional layer)	Evaluator/reviewer for teams where the team layer exists.
+Line Manager	Reviewer of individual performance data within their reporting scope.
+Job Owner / Employee	Individual contributor updating KPI actuals and evidence for their role.
+Data Steward / Integration Service	Handles automated data flows from HRIS/CRM/ERP/BI.
+BI Analyst / Finance Controller	Generates advanced reports, forecasts, and variance analysis.
+________________________________________
+3. Primary Actions & Goals
+Setup & Configuration
+•	Action: Configure organization structure (Org → Dept → [Team] → Individual), perspectives, custom labels, KPI library, and cascading rules.
+•	Goal: Ensure system reflects real-world structure and terminology.
+KPI Creation & Cascading
+•	Action: Define perspectives, objectives, KPIs, targets, and initiatives; cascade them to lower levels.
+•	Goal: Maintain strategic alignment across all levels.
+Performance Data Entry
+•	Action: Enter/update KPI actuals and attach evidence.
+•	Goal: Capture accurate and timely performance data.
+Review & Approval
+•	Action: Review submitted KPI data against targets; approve or return with feedback.
+•	Goal: Ensure accuracy, accountability, and performance improvement.
+Reporting & Insights
+•	Action: View dashboards, trend analysis, variance reports, and KPI balance across perspectives.
+•	Goal: Provide actionable insights for decision-making.
+Version Control & Change Management
+•	Action: Request and approve changes to KPIs, targets, or initiatives mid-cycle with effective dates.
+•	Goal: Maintain historical integrity while adapting to change.
+________________________________________
+4. Use Cases
+Use Case 1 – Consultant Initial KPI Upload
+Primary Actor: Consultant
+Preconditions: Accounts created, structure defined.
+Trigger: New organization onboarding.
+Basic Flow:
+1.	Consultant logs in.
+2.	Uploads KPI documentation (including perspectives, objectives, KPIs, targets, initiatives).
+3.	System cascades KPIs to relevant levels.
+4.	Notifications sent to all owners.
+Alternate Flow:
+•	Consultant uploads bulk changes via Excel → system applies updates and sends alerts.
+________________________________________
+Use Case 2 – Org-Level Data Entry
+Primary Actor: Strategy Team
+Preconditions: KPIs cascaded to org level.
+Basic Flow:
+1.	Logs in and views assigned KPIs.
+2.	Updates KPI actuals, attaches evidence.
+3.	Submits for management review.
+Alternate Flow:
+•	Can revise data before approval deadline.
+________________________________________
+Use Case 3 – Department Data Entry
+Primary Actor: KPI Champ
+Preconditions: KPIs cascaded to department.
+Basic Flow:
+1.	Logs in and updates departmental KPI data and evidence.
+2.	Submits for review by Strategy Team.
+Alternate Flow:
+•	Revise before approval.
+________________________________________
+Use Case 4 – Individual Review
+Primary Actor: Line Manager
+Preconditions: Employee submitted KPI data.
+Basic Flow:
+1.	Logs in, reviews employee’s KPIs against targets.
+2.	Approves or returns with comments.
+3.	Downloads review report if needed.
+________________________________________
+Use Case 5 – Mixed Level Configuration
+Primary Actor: Super Admin
+Basic Flow:
+1.	Sets which departments have the team layer.
+2.	Assigns team leads and cascades KPIs accordingly.
+________________________________________
+Use Case 6 – Change Request
+Primary Actor: Any KPI Owner
+Basic Flow:
+1.	Requests KPI/target change with justification.
+2.	Reviewer approves/denies; if approved, system updates and notifies stakeholders.
+________________________________________
+Use Case 7 – Reporting
+Primary Actor: BI Analyst / Management Team
+Basic Flow:
+1.	Opens dashboard/report module.
+2.	Filters by period, perspective, department, or level.
+3.	Exports to PDF/Excel.
+________________________________________
+5. User Stories
+Setup
+•	As a Super Admin, I want to define perspectives and rename them to match our company language so that users see familiar terms.
+•	As a Consultant, I want to upload the KPI library so that all levels can have their assigned KPIs automatically.
+Cascading
+•	As a Strategy Team member, I want to cascade objectives to departments so that every department aligns with organizational goals.
+•	As a Super Admin, I want to configure which departments have a team layer so that the cascade reflects real structure.
+Data Entry
+•	As a KPI Champ, I want to update department KPI values and attach evidence so that reviewers have all the information they need.
+•	As a Job Owner, I want to see my KPIs and update them regularly so that my performance is tracked.
+Review
+•	As a Management Team member, I want to review and approve corporate KPI data so that organizational performance is accurately measured.
+•	As a Line Manager, I want to review my direct reports’ KPI updates so that I can coach and improve their performance.
+Change Control
+•	As a KPI Owner, I want to request a target change mid-year so that my KPIs remain realistic.
+•	As a Reviewer, I want to approve or reject KPI changes so that targets stay aligned with strategy.
+Reporting
+•	As a BI Analyst, I want to see KPI performance trends across perspectives so that I can advise leadership on strategy.
+•	As a Management Team member, I want to generate and download KPI reports so that I can present them at review meetings.
+________________________________________
+I can also produce a visual UML Use Case Diagram for MetricSoft showing all actors and their linked use cases, so it’s easier to explain the scope to stakeholders or a dev team.
+Do you want me to prepare that diagram next?
+
