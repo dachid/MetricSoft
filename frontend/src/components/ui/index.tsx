@@ -3,7 +3,7 @@
 interface ButtonProps {
   children: React.ReactNode
   onClick?: () => void
-  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'ghost'
+  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'ghost' | 'outline'
   size?: 'sm' | 'md' | 'lg'
   disabled?: boolean
   loading?: boolean
@@ -28,7 +28,8 @@ export function Button({
     secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500',
     success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    ghost: 'text-gray-700 hover:bg-gray-50 focus:ring-gray-500'
+    ghost: 'text-gray-700 hover:bg-gray-50 focus:ring-gray-500',
+    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-gray-500'
   }
   
   const sizeClasses = {
@@ -95,11 +96,11 @@ export function Input({
   helpText
 }: InputProps) {
   const inputClasses = `
-    block w-full px-3 py-2 border rounded-lg text-sm placeholder-gray-400
+    block w-full px-3 py-2 border rounded-lg text-sm placeholder-gray-400 text-gray-900
     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
     transition-colors duration-150
     ${error ? 'border-red-300 bg-red-50' : warning ? 'border-yellow-300 bg-yellow-50' : 'border-gray-300 bg-white'}
-    ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}
+    ${disabled ? 'bg-gray-50 cursor-not-allowed text-gray-500' : ''}
   `
 
   return (
@@ -194,13 +195,15 @@ export function Card({
 
 interface BadgeProps {
   children: React.ReactNode
-  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info'
+  variant?: 'default' | 'secondary' | 'success' | 'warning' | 'danger' | 'info'
   size?: 'sm' | 'md'
+  className?: string
 }
 
-export function Badge({ children, variant = 'default', size = 'sm' }: BadgeProps) {
+export function Badge({ children, variant = 'default', size = 'sm', className = '' }: BadgeProps) {
   const variantClasses = {
     default: 'bg-gray-100 text-gray-800',
+    secondary: 'bg-blue-100 text-blue-800',
     success: 'bg-green-100 text-green-800',
     warning: 'bg-yellow-100 text-yellow-800',
     danger: 'bg-red-100 text-red-800',
@@ -217,6 +220,7 @@ export function Badge({ children, variant = 'default', size = 'sm' }: BadgeProps
       inline-flex items-center font-medium rounded-full
       ${variantClasses[variant]}
       ${sizeClasses[size]}
+      ${className}
     `}>
       {children}
     </span>
@@ -315,3 +319,171 @@ export function AutoSaveIndicator({ isSaving, lastSaved, className = '' }: AutoS
 
   return null
 }
+
+// Tabs Components
+interface TabsProps {
+  value: string
+  onValueChange: (value: string) => void
+  children: React.ReactNode
+  className?: string
+}
+
+export function Tabs({ value, onValueChange, children, className = '' }: TabsProps) {
+  return (
+    <div className={className}>
+      {children}
+    </div>
+  )
+}
+
+interface TabsListProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function TabsList({ children, className = '' }: TabsListProps) {
+  return (
+    <div className={`inline-flex h-10 items-center justify-center rounded-md bg-gray-100 p-1 text-gray-500 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+interface TabsTriggerProps {
+  value: string
+  children: React.ReactNode
+  className?: string
+}
+
+export function TabsTrigger({ value, children, className = '' }: TabsTriggerProps) {
+  return (
+    <button
+      className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm ${className}`}
+      data-state={value ? 'active' : 'inactive'}
+    >
+      {children}
+    </button>
+  )
+}
+
+interface TabsContentProps {
+  value: string
+  children: React.ReactNode
+  className?: string
+}
+
+export function TabsContent({ value, children, className = '' }: TabsContentProps) {
+  return (
+    <div className={`mt-2 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+// Card Header Components
+interface CardHeaderProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function CardHeader({ children, className = '' }: CardHeaderProps) {
+  return (
+    <div className={`flex flex-col space-y-1.5 p-6 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+interface CardTitleProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function CardTitle({ children, className = '' }: CardTitleProps) {
+  return (
+    <h3 className={`text-2xl font-semibold leading-none tracking-tight ${className}`}>
+      {children}
+    </h3>
+  )
+}
+
+interface CardDescriptionProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function CardDescription({ children, className = '' }: CardDescriptionProps) {
+  return (
+    <p className={`text-sm text-gray-600 ${className}`}>
+      {children}
+    </p>
+  )
+}
+
+interface CardContentProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function CardContent({ children, className = '' }: CardContentProps) {
+  return (
+    <div className={`p-6 pt-0 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+// Additional Form Components
+interface LabelProps {
+  htmlFor?: string
+  children: React.ReactNode
+  className?: string
+}
+
+export function Label({ htmlFor, children, className = '' }: LabelProps) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className}`}
+    >
+      {children}
+    </label>
+  )
+}
+
+interface CheckboxProps {
+  id?: string
+  checked?: boolean
+  onCheckedChange?: (checked: boolean) => void
+  disabled?: boolean
+  className?: string
+}
+
+export function Checkbox({ id, checked = false, onCheckedChange, disabled = false, className = '' }: CheckboxProps) {
+  return (
+    <input
+      id={id}
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onCheckedChange?.(e.target.checked)}
+      disabled={disabled}
+      className={`h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${className}`}
+    />
+  )
+}
+
+interface SeparatorProps {
+  className?: string
+  orientation?: 'horizontal' | 'vertical'
+}
+
+export function Separator({ className = '', orientation = 'horizontal' }: SeparatorProps) {
+  return (
+    <div
+      className={`shrink-0 bg-gray-200 ${
+        orientation === 'horizontal' ? 'h-[1px] w-full' : 'h-full w-[1px]'
+      } ${className}`}
+    />
+  )
+}
+

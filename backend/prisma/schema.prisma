@@ -32,6 +32,9 @@ model User {
 
   // User roles within tenant
   roles UserRole[]
+  
+  // Enhanced org unit assignments
+  orgAssignments UserOrgAssignment[]
 
   @@map("users")
 }
@@ -50,6 +53,8 @@ model Tenant {
   ownerUsers User[]
   tenantSettings TenantSettings?
   perspectives   Perspective[]
+  levelDefinitions LevelDefinition[]
+  orgUnits       OrgUnit[]
 
   @@map("tenants")
 }
@@ -61,6 +66,9 @@ model TenantSettings {
   
   // Terminology customization with smart defaults
   terminology       Json     @default("{\"perspectives\":\"Perspectives\",\"objectives\":\"Objectives\",\"kpis\":\"KPIs\",\"targets\":\"Targets\",\"initiatives\":\"Initiatives\"}")
+  
+  // Enhanced organizational structure configuration
+  orgStructureConfig Json    @default("{\"enabledLevels\":[\"ORGANIZATION\",\"DEPARTMENT\",\"INDIVIDUAL\"],\"customLevels\":[]}")
   
   // Fiscal year and periods with intelligent defaults
   fiscalYearStart   DateTime @default("2025-01-01T00:00:00Z")
@@ -153,4 +161,88 @@ model AuthCode {
   updatedAt DateTime @updatedAt
 
   @@map("auth_codes")
+}
+
+// Enhanced Organizational Structure Models
+
+model LevelDefinition {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  code            String   // ORGANIZATION, DEPARTMENT, TEAM, INDIVIDUAL, or custom
+  name            String   // Display name (e.g., "Department", "Region", "Business Unit")
+  pluralName      String   // Plural form (e.g., "Departments", "Regions")
+  hierarchyLevel  Int      // 0=Organization (always), 1=Department, 2=Team, 3=Individual, etc.
+  isStandard      Boolean  @default(true)  // Standard vs custom level
+  isEnabled       Boolean  @default(true)  // Can be disabled to hide level
+  icon            String?  // Optional icon
+  color           String   @default("#6B7280") // Default gray
+  
+  // Smart defaults and metadata
+  metadata        Json     @default("{}")    // Flexible config storage
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relationships
+  orgUnits        OrgUnit[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, hierarchyLevel])
+  @@map("level_definitions")
+}
+
+model OrgUnit {
+  id              String          @id @default(cuid())
+  tenantId        String
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  levelDefinitionId String
+  levelDefinition LevelDefinition @relation(fields: [levelDefinitionId], references: [id], onDelete: Cascade)
+  
+  code            String          // Auto-generated or manual
+  name            String
+  description     String?
+  parentId        String?         // Self-referential for hierarchy
+  parent          OrgUnit?        @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children        OrgUnit[]       @relation("OrgUnitHierarchy")
+  
+  // Smart features to reduce data entry
+  isActive        Boolean         @default(true)
+  sortOrder       Int             @default(0)
+  metadata        Json            @default("{}") // Flexible data storage
+  
+  // Effective dating for re-orgs
+  effectiveFrom   DateTime        @default(now())
+  effectiveTo     DateTime?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  // User assignments to any org unit
+  userAssignments UserOrgAssignment[]
+
+  @@unique([tenantId, levelDefinitionId, code])
+  @@map("org_units")
+}
+
+model UserOrgAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgUnitId String
+  orgUnit   OrgUnit  @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  
+  // Role within this org unit (optional, can use UserRole instead)
+  role      String?  // "MANAGER", "MEMBER", "OWNER", etc.
+  
+  // Effective dating for changes
+  effectiveFrom DateTime @default(now())
+  effectiveTo   DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, orgUnitId])
+  @@map("user_org_assignments")
 }

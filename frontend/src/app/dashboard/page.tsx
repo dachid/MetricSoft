@@ -29,42 +29,6 @@ export default function DashboardPage() {
   return (
     <DashboardLayout title="Dashboard" subtitle="Performance Management Overview">
       <div className="space-y-6">
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Tenant Configuration</h3>
-            <p className="text-sm text-gray-600 mb-4">Configure your organization settings and terminology</p>
-            <button 
-              onClick={() => router.push('/settings')}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
-            >
-              Configure Settings
-            </button>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Performance Data</h3>
-            <p className="text-sm text-gray-600 mb-4">View and manage performance metrics</p>
-            <button 
-              disabled
-              className="w-full bg-gray-300 text-gray-500 px-4 py-2 rounded-md text-sm font-medium cursor-not-allowed"
-            >
-              Coming Soon
-            </button>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Reports</h3>
-            <p className="text-sm text-gray-600 mb-4">Generate performance reports and analytics</p>
-            <button 
-              disabled
-              className="w-full bg-gray-300 text-gray-500 px-4 py-2 rounded-md text-sm font-medium cursor-not-allowed"
-            >
-              Coming Soon
-            </button>
-          </div>
-        </div>
-
         {/* Welcome Message */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">

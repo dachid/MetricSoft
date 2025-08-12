@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
+import { OrganizationalStructure } from '@/components/features/OrganizationalStructure';
+import { HierarchyConfiguration } from '@/components/features/HierarchyConfiguration';
 
 interface TenantSettings {
   id: string;
@@ -30,6 +32,13 @@ interface TenantSettings {
   };
 }
 
+interface Tenant {
+  id: string;
+  name: string;
+  subdomain: string;
+  isActive: boolean;
+}
+
 interface Perspective {
   id: string;
   code: string;
@@ -47,9 +56,14 @@ function TenantSettingsContent() {
   const [perspectives, setPerspectives] = useState<Perspective[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'terminology' | 'fiscal' | 'branding' | 'perspectives'>('terminology');
+  const [activeTab, setActiveTab] = useState<'hierarchy' | 'structure' | 'terminology' | 'fiscal' | 'branding' | 'perspectives'>('hierarchy');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Super Admin specific state
+  const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const isSuperAdmin = user?.roles?.some(role => role.code === 'SUPER_ADMIN');
 
   const [formData, setFormData] = useState({
     terminology: {
@@ -67,14 +81,53 @@ function TenantSettingsContent() {
     }
   });
 
-  // Load tenant settings
+  // Load available tenants for Super Admin
   useEffect(() => {
-    const loadSettings = async () => {
-      if (!user?.tenantId) return;
+    const loadTenants = async () => {
+      if (!isSuperAdmin) return;
       
       try {
         const token = localStorage.getItem('metricsoft_auth_token');
-        const response = await fetch(`http://localhost:5000/api/tenants/${user.tenantId}/settings`, {
+        const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          setAvailableTenants(result.data);
+          // Auto-select first tenant if available
+          if (result.data.length > 0 && !selectedTenantId) {
+            setSelectedTenantId(result.data[0].id);
+          }
+        } else {
+          console.error('Failed to load tenants');
+        }
+      } catch (error) {
+        console.error('Error loading tenants:', error);
+      }
+    };
+
+    loadTenants();
+  }, [isSuperAdmin, user]);
+
+  // Load tenant settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      let tenantIdToUse;
+      
+      if (isSuperAdmin) {
+        if (!selectedTenantId) return;
+        tenantIdToUse = selectedTenantId;
+      } else {
+        if (!user?.tenantId) return;
+        tenantIdToUse = user.tenantId;
+      }
+      
+      try {
+        const token = localStorage.getItem('metricsoft_auth_token');
+        const response = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/settings`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -99,11 +152,19 @@ function TenantSettingsContent() {
     };
 
     const loadPerspectives = async () => {
-      if (!user?.tenantId) return;
+      let tenantIdToUse;
+      
+      if (isSuperAdmin) {
+        if (!selectedTenantId) return;
+        tenantIdToUse = selectedTenantId;
+      } else {
+        if (!user?.tenantId) return;
+        tenantIdToUse = user.tenantId;
+      }
       
       try {
         const token = localStorage.getItem('metricsoft_auth_token');
-        const response = await fetch(`http://localhost:5000/api/tenants/${user.tenantId}/perspectives`, {
+        const response = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/perspectives`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -120,10 +181,18 @@ function TenantSettingsContent() {
 
     Promise.all([loadSettings(), loadPerspectives()])
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, selectedTenantId, isSuperAdmin]);
 
   const handleSave = async () => {
-    if (!user?.tenantId) return;
+    let tenantIdToUse;
+    
+    if (isSuperAdmin) {
+      if (!selectedTenantId) return;
+      tenantIdToUse = selectedTenantId;
+    } else {
+      if (!user?.tenantId) return;
+      tenantIdToUse = user.tenantId;
+    }
     
     setSaving(true);
     setErrorMessage('');
@@ -131,7 +200,7 @@ function TenantSettingsContent() {
     
     try {
       const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(`http://localhost:5000/api/tenants/${user.tenantId}/settings`, {
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -159,11 +228,21 @@ function TenantSettingsContent() {
 
   const handleAddPerspective = async () => {
     const name = prompt('Enter perspective name:');
-    if (!name || !user?.tenantId) return;
+    
+    let tenantIdToUse;
+    if (isSuperAdmin) {
+      if (!selectedTenantId) return;
+      tenantIdToUse = selectedTenantId;
+    } else {
+      if (!user?.tenantId) return;
+      tenantIdToUse = user.tenantId;
+    }
+    
+    if (!name) return;
 
     try {
       const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(`http://localhost:5000/api/tenants/${user.tenantId}/perspectives`, {
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/perspectives`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -203,6 +282,8 @@ function TenantSettingsContent() {
   }
 
   const tabs = [
+    { id: 'hierarchy', label: 'Hierarchy Configuration', icon: '🏗️', description: 'Configure organizational levels' },
+    { id: 'structure', label: 'Organization Structure', icon: '🏢', description: 'Manage organizational units' },
     { id: 'terminology', label: 'Terminology', icon: '📝', description: 'Customize system terminology' },
     { id: 'fiscal', label: 'Fiscal Settings', icon: '📅', description: 'Configure fiscal year and periods' },
     { id: 'branding', label: 'Branding', icon: '🎨', description: 'Customize your brand appearance' },
@@ -211,7 +292,61 @@ function TenantSettingsContent() {
 
   return (
     <div className="space-y-6">
-      {/* Success/Error Messages */}
+      {/* Organization Selector for Super Admin */}
+      {isSuperAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-blue-900">Super Admin - Organization Management</h3>
+              <p className="text-sm text-blue-700 mt-1">Select an organization to manage its settings</p>
+            </div>
+            <div className="min-w-64">
+              <label htmlFor="tenant-select" className="block text-sm font-medium text-blue-900 mb-2">
+                Select Organization
+              </label>
+              <select
+                id="tenant-select"
+                value={selectedTenantId || ''}
+                onChange={(e) => setSelectedTenantId(e.target.value)}
+                className="w-full px-3 py-2 border border-blue-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select an organization...</option>
+                {availableTenants.map((tenant) => (
+                  <option key={tenant.id} value={tenant.id}>
+                    {tenant.name} ({tenant.subdomain})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          {selectedTenantId && settings && (
+            <div className="mt-4 pt-4 border-t border-blue-200">
+              <div className="flex items-center space-x-4 text-sm text-blue-800">
+                <span><strong>Managing:</strong> {settings.tenant.name}</span>
+                <span><strong>Subdomain:</strong> {settings.tenant.subdomain}</span>
+                <span><strong>Status:</strong> Active</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Show message if no organization selected for Super Admin */}
+      {isSuperAdmin && !selectedTenantId && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+          <div className="text-gray-400 text-6xl mb-4">🏢</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Organization Selected</h3>
+          <p className="text-gray-600">
+            Please select an organization from the dropdown above to manage its settings.
+          </p>
+        </div>
+      )}
+
+      {/* Settings Content - Only show if organization is selected (for Super Admin) or user has tenant */}
+      {((isSuperAdmin && selectedTenantId) || (!isSuperAdmin && user?.tenantId)) && (
+        <>
+          {/* Success/Error Messages */}
       {successMessage && (
         <div className="bg-green-50 border border-green-200 rounded-md p-4">
           <div className="flex">
@@ -288,6 +423,37 @@ function TenantSettingsContent() {
 
         {/* Tab Content */}
         <div className="p-6">
+          {/* Hierarchy Configuration Tab */}
+          {activeTab === 'hierarchy' && (
+            <div className="space-y-6">
+              {/* Use the new HierarchyConfiguration component */}
+              <HierarchyConfiguration 
+                tenantId={selectedTenantId || user?.tenantId || ''}
+                onSuccess={setSuccessMessage}
+                onError={setErrorMessage}
+              />
+            </div>
+          )}
+
+          {/* Organization Structure Tab */}
+          {activeTab === 'structure' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Organization Structure Management
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Create and manage your organizational units, departments, teams, and positions.
+                </p>
+              </div>
+
+              {/* Include the Organizational Structure component */}
+              <div className="bg-white border rounded-lg p-6">
+                <OrganizationalStructure />
+              </div>
+            </div>
+          )}
+
           {/* Terminology Tab */}
           {activeTab === 'terminology' && (
             <div className="space-y-6">
@@ -560,14 +726,16 @@ function TenantSettingsContent() {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
 
 export default function TenantSettingsPage() {
   return (
-    <ProtectedRoute requiredRoles={['SUPER_ADMIN', 'STRATEGY_TEAM']}>
-      <DashboardLayout title="Tenant Settings" subtitle="Configure your MetricSoft experience">
+    <ProtectedRoute requiredRoles={['SUPER_ADMIN', 'ORGANIZATION_ADMIN']}>
+      <DashboardLayout title="Organization Settings" subtitle="Configure your MetricSoft experience">
         <TenantSettingsContent />
       </DashboardLayout>
     </ProtectedRoute>

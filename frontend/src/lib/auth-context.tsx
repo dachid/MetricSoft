@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { authApi, AuthUser, LoginCredentials, RegisterCredentials, PasswordlessRequest, PasswordlessVerification } from '@/lib/api'
+import { apiClient } from '@/lib/apiClient'
 
 interface AuthContextType {
   user: AuthUser | null
@@ -29,11 +30,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (token && userData) {
           const user = JSON.parse(userData)
           setUser(user)
+          // Set the token in the API client
+          apiClient.setAuthToken(token)
         }
       } catch (error) {
         console.error('Error initializing auth:', error)
         localStorage.removeItem('metricsoft_auth_token')
         localStorage.removeItem('metricsoft_user')
+        apiClient.clearAuthToken()
       } finally {
         setLoading(false)
       }
@@ -57,6 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('metricsoft_auth_token', token)
       localStorage.setItem('metricsoft_user', JSON.stringify(user))
       setUser(user)
+      // Set the token in the API client
+      apiClient.setAuthToken(token)
       
       return {}
     } catch (error: any) {
@@ -82,6 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('metricsoft_auth_token', token)
       localStorage.setItem('metricsoft_user', JSON.stringify(user))
       setUser(user)
+      // Set the token in the API client
+      apiClient.setAuthToken(token)
       
       return {}
     } catch (error: any) {
@@ -134,6 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('metricsoft_auth_token', token)
       localStorage.setItem('metricsoft_user', JSON.stringify(user))
       setUser(user)
+      // Set the token in the API client
+      apiClient.setAuthToken(token)
       
       return {}
     } catch (error: any) {
@@ -153,6 +163,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('metricsoft_auth_token')
       localStorage.removeItem('metricsoft_user')
       setUser(null)
+      // Clear the token from the API client
+      apiClient.clearAuthToken()
       return {}
     } catch (error) {
       console.error('Sign out error:', error)

@@ -19,7 +19,13 @@ export async function GET(
     const tenantId = params.id;
     
     // Verify user has access to this tenant
-    if (authResult.user?.tenantId !== tenantId) {
+    // Super Admins can access any tenant, Organization Admins only their own tenant
+    if (!authResult.user) {
+      throw new AuthenticationError('User not found');
+    }
+    
+    const isSuperAdmin = authResult.user.roles.some((role: any) => role.code === 'SUPER_ADMIN');
+    if (!isSuperAdmin && authResult.user.tenantId !== tenantId) {
       throw new AuthorizationError('Access denied to this tenant');
     }
 
@@ -57,7 +63,13 @@ export async function POST(
     const tenantId = params.id;
     
     // Verify user has access to this tenant
-    if (authResult.user?.tenantId !== tenantId) {
+    // Super Admins can access any tenant, Organization Admins only their own tenant
+    if (!authResult.user) {
+      throw new AuthenticationError('User not found');
+    }
+    
+    const isSuperAdmin = authResult.user.roles.some((role: any) => role.code === 'SUPER_ADMIN');
+    if (!isSuperAdmin && authResult.user.tenantId !== tenantId) {
       throw new AuthorizationError('Access denied to this tenant');
     }
 

@@ -11,8 +11,19 @@ async function main() {
       create: {
         name: 'Super Administrator',
         code: 'SUPER_ADMIN',
-        description: 'Full system access including tenant configuration',
+        description: 'Full system access including tenant creation and management',
         permissions: ['*'],
+        isSystem: true
+      }
+    }),
+    prisma.role.upsert({
+      where: { code: 'ORGANIZATION_ADMIN' },
+      update: {},
+      create: {
+        name: 'Organization Administrator',
+        code: 'ORGANIZATION_ADMIN',
+        description: 'Full tenant access including user management and organization setup (cannot create new tenants)',
+        permissions: ['manage:tenant_settings', 'manage:users', 'manage:organization', 'read:all_kpis', 'write:all_kpis', 'manage:cascades', 'view:reports'],
         isSystem: true
       }
     }),
@@ -22,8 +33,8 @@ async function main() {
       create: {
         name: 'Strategy Team',
         code: 'STRATEGY_TEAM',
-        description: 'Strategic oversight, KPI management, and tenant configuration access',
-        permissions: ['read:all_kpis', 'write:all_kpis', 'manage:cascades', 'view:reports', 'manage:tenant_settings'],
+        description: 'Strategic oversight and KPI management',
+        permissions: ['read:all_kpis', 'write:all_kpis', 'manage:cascades', 'view:reports'],
         isSystem: true
       }
     }),
@@ -51,145 +62,55 @@ async function main() {
     })
   ])
 
-  // Create demo tenant
-  const tenant = await prisma.tenant.upsert({
-    where: { subdomain: 'demo' },
+  // Create a system tenant for Super Admin role assignments (required by schema)
+  const systemTenant = await prisma.tenant.upsert({
+    where: { subdomain: 'system' },
     update: {},
     create: {
-      name: 'Demo Organization',
-      subdomain: 'demo',
-      settings: {
-        fiscalYearStart: '2024-01-01',
-        terminology: {
-          perspectives: 'Focus Areas',
-          objectives: 'Goals',
-          kpis: 'Metrics',
-          targets: 'Benchmarks',
-          initiatives: 'Projects'
-        }
-      }
+      name: 'System',
+      subdomain: 'system',
+      settings: {}
     }
   })
 
-  // Create demo users with proper authentication model (passwordless)
-  const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@metricsoft.com' },
-    update: {},
-    create: {
-      email: 'admin@metricsoft.com',
-      name: 'Admin User',
-      tenantId: tenant.id
-    }
-  })
-
-  const regularUser = await prisma.user.upsert({
-    where: { email: 'user@metricsoft.com' },
-    update: {},
-    create: {
-      email: 'user@metricsoft.com',
-      name: 'Regular User',
-      tenantId: tenant.id
-    }
-  })
-
-  // Create the specific test user daveed_8@yahoo.com with STRATEGY_TEAM role
-  const testUser = await prisma.user.upsert({
+  // Create the Super Admin user daveed_8@yahoo.com
+  const superAdminUser = await prisma.user.upsert({
     where: { email: 'daveed_8@yahoo.com' },
     update: {},
     create: {
       email: 'daveed_8@yahoo.com',
-      name: 'David Test User',
-      tenantId: tenant.id
+      name: 'David Super Admin',
+      tenantId: null // Super admins don't belong to any specific tenant
     }
   })
 
-  // Assign roles to users
-  await prisma.userRole.upsert({
+  // Assign SUPER_ADMIN role (using system tenant for schema compliance)
+  const existingUserRole = await prisma.userRole.findFirst({
     where: {
-      userId_tenantId_roleId: {
-        userId: adminUser.id,
-        tenantId: tenant.id,
-        roleId: roles[0].id // Super Admin
-      }
-    },
-    update: {},
-    create: {
-      userId: adminUser.id,
-      tenantId: tenant.id,
+      userId: superAdminUser.id,
+      tenantId: systemTenant.id,
       roleId: roles[0].id
     }
-  })
+  });
 
-  await prisma.userRole.upsert({
-    where: {
-      userId_tenantId_roleId: {
-        userId: regularUser.id,
-        tenantId: tenant.id,
-        roleId: roles[3].id // Employee
+  if (!existingUserRole) {
+    await prisma.userRole.create({
+      data: {
+        userId: superAdminUser.id,
+        tenantId: systemTenant.id,
+        roleId: roles[0].id
       }
-    },
-    update: {},
-    create: {
-      userId: regularUser.id,
-      tenantId: tenant.id,
-      roleId: roles[3].id
-    }
-  })
-
-  // Give test user STRATEGY_TEAM role for tenant settings access
-  await prisma.userRole.upsert({
-    where: {
-      userId_tenantId_roleId: {
-        userId: testUser.id,
-        tenantId: tenant.id,
-        roleId: roles[1].id // Strategy Team
-      }
-    },
-    update: {},
-    create: {
-      userId: testUser.id,
-      tenantId: tenant.id,
-      roleId: roles[1].id
-    }
-  })
-
-  // Create tenant settings for the demo tenant
-  await prisma.tenantSettings.upsert({
-    where: { tenantId: tenant.id },
-    update: {},
-    create: {
-      tenantId: tenant.id,
-      terminology: {
-        perspectives: 'Strategic Perspectives',
-        objectives: 'Strategic Objectives',
-        kpis: 'Key Performance Indicators',
-        targets: 'Performance Targets',
-        initiatives: 'Strategic Initiatives'
-      },
-      fiscalYearStart: new Date('2024-01-01'),
-      periods: [],
-      branding: {
-        primaryColor: '#3B82F6',
-        companyName: 'Demo Organization',
-        logoUrl: ''
-      },
-      setupCompleted: false,
-      setupStep: 1
-    }
-  })
+    });
+  }
 
   console.log('Database seeded successfully!')
-  console.log('Demo tenant:', tenant.name)
-  console.log('Demo users created:')
-  console.log('- Admin: admin@metricsoft.com (SUPER_ADMIN)')
-  console.log('- User: user@metricsoft.com (EMPLOYEE)')
-  console.log('- Test User: daveed_8@yahoo.com (STRATEGY_TEAM) - Can access tenant settings!')
+  console.log('Super Admin created: daveed_8@yahoo.com')
   console.log('')
-  console.log('Role permissions for tenant settings:')
-  console.log('- SUPER_ADMIN: Full system access (✅ can manage tenant settings)')
-  console.log('- STRATEGY_TEAM: Strategic oversight (✅ can manage tenant settings)')
-  console.log('- KPI_CHAMP: Department level (❌ cannot manage tenant settings)')
-  console.log('- EMPLOYEE: Individual level (❌ cannot manage tenant settings)')
+  console.log('System is ready for tenant creation by Super Admin.')
+  console.log('Next steps:')
+  console.log('1. Super Admin (daveed_8@yahoo.com) logs in')
+  console.log('2. Creates new tenants via Tenant Management')
+  console.log('3. Assigns Organization Admins to manage each tenant')
 }
 
 main()

@@ -51,7 +51,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
       ),
     },
     {
-      name: 'Tenant Settings',
+      name: 'Organization Settings',
       href: '/settings',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +59,17 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
-      roles: ['SUPER_ADMIN', 'STRATEGY_TEAM'], // Only admins and strategy team can access
+      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'], // Organization Admins and Super Admins can access settings
+    },
+    {
+      name: 'Tenant Management',
+      href: '/admin/tenants',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+      roles: ['SUPER_ADMIN'], // Only Super Admins can create/manage tenants
     }
   ];
 
@@ -94,29 +104,38 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
         {/* Navigation */}
         <nav className="mt-8 flex-1 px-6">
           <div className="space-y-1">
-            {navigation.map((item) => {
-              const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-              const isActive = currentPath === item.href;
+            {navigation
+              .filter((item) => {
+                // If item has roles requirement, check if user has any of those roles
+                if (item.roles && item.roles.length > 0) {
+                  return user?.roles?.some(userRole => item.roles?.includes(userRole.code));
+                }
+                // If no roles requirement, show to everyone
+                return true;
+              })
+              .map((item) => {
+                const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+                const isActive = currentPath === item.href;
 
-              return (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  className={`
-                    group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-150 ease-in-out
-                    ${isActive 
-                      ? 'bg-blue-100 text-blue-900' 
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <div className={`mr-3 flex-shrink-0 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`}>
-                    {item.icon}
-                  </div>
-                  {item.name}
-                </a>
-              );
-            })}
+                return (
+                  <a
+                    key={item.name}
+                    href={item.href}
+                    className={`
+                      group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-150 ease-in-out
+                      ${isActive 
+                        ? 'bg-blue-100 text-blue-900' 
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }
+                    `}
+                  >
+                    <div className={`mr-3 flex-shrink-0 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`}>
+                      {item.icon}
+                    </div>
+                    {item.name}
+                  </a>
+                );
+              })}
           </div>
         </nav>
 

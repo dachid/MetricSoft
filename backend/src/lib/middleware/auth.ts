@@ -9,6 +9,11 @@ export interface AuthResult {
     id: string;
     email: string;
     tenantId?: string | null;
+    roles: Array<{
+      id: string;
+      code: string;
+      name: string;
+    }>;
   };
   error?: string;
 }
@@ -43,13 +48,24 @@ export async function authMiddleware(request: NextRequest): Promise<AuthResult> 
       };
     }
 
-    // Get user details separately
+    // Get user details with roles
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: {
         id: true,
         email: true,
-        tenantId: true
+        tenantId: true,
+        roles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                code: true,
+                name: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -62,7 +78,12 @@ export async function authMiddleware(request: NextRequest): Promise<AuthResult> 
 
     return {
       success: true,
-      user
+      user: {
+        id: user.id,
+        email: user.email,
+        tenantId: user.tenantId,
+        roles: user.roles.map(ur => ur.role)
+      }
     };
   } catch (error) {
     console.error('Auth middleware error:', error);
