@@ -1,26 +1,103 @@
-import { useState } from 'react'
-import { tenantApiService } from '../../services/api/tenants'
+import { useState, useEffect } from 'react'
 import { Input, Button, Card } from '../ui'
-import { TenantSettings, TerminologyPreset } from '../../types/tenant'
 
+// Phase 2 - Updated for performance components terminology
 interface TerminologyEditorProps {
-  settings?: TenantSettings
+  terminology?: Record<string, string>
   onChange: (changes: any) => void
 }
 
-export function TerminologyEditor({ settings, onChange }: TerminologyEditorProps) {
+interface TerminologyPreset {
+  name: string
+  description: string
+  config: Record<string, string>
+}
+
+export function TerminologyEditor({ terminology: initialTerminology, onChange }: TerminologyEditorProps) {
+  // Default Balanced Scorecard terminology with both singular and plural forms
+  const defaultTerminology = {
+    perspectives: 'Perspective',
+    perspectivesPlural: 'Perspectives',
+    objectives: 'Objective',
+    objectivesPlural: 'Objectives',
+    kpis: 'KPI',
+    kpisPlural: 'KPIs',
+    targets: 'Target',
+    targetsPlural: 'Targets'
+  }
+
   const [terminology, setTerminology] = useState(
-    settings?.terminology || {
-      perspectives: 'Perspectives',
-      objectives: 'Objectives',
-      kpis: 'KPIs',
-      targets: 'Targets',
-      initiatives: 'Initiatives'
-    }
+    initialTerminology ? { ...defaultTerminology, ...initialTerminology } : defaultTerminology
   )
 
   const [showPresets, setShowPresets] = useState(false)
-  const presets = tenantApiService.getTerminologyPresets()
+
+  // Update terminology when props change
+  useEffect(() => {
+    if (initialTerminology) {
+      setTerminology({ ...defaultTerminology, ...initialTerminology })
+    }
+  }, [initialTerminology])
+
+  // Predefined terminology presets for Phase 2
+  const presets: TerminologyPreset[] = [
+    {
+      name: 'Balanced Scorecard',
+      description: 'Traditional performance management terminology',
+      config: {
+        perspectives: 'Perspective',
+        perspectivesPlural: 'Perspectives',
+        objectives: 'Objective',
+        objectivesPlural: 'Objectives',
+        kpis: 'KPI',
+        kpisPlural: 'KPIs',
+        targets: 'Target',
+        targetsPlural: 'Targets'
+      }
+    },
+    {
+      name: 'OKR Framework',
+      description: 'Objectives and Key Results terminology',
+      config: {
+        perspectives: 'Focus Area',
+        perspectivesPlural: 'Focus Areas',
+        objectives: 'Objective',
+        objectivesPlural: 'Objectives',
+        kpis: 'Key Result',
+        kpisPlural: 'Key Results',
+        targets: 'Target',
+        targetsPlural: 'Targets'
+      }
+    },
+    {
+      name: 'Strategic Planning',
+      description: 'Corporate strategy terminology',
+      config: {
+        perspectives: 'Strategic Pillar',
+        perspectivesPlural: 'Strategic Pillars',
+        objectives: 'Goal',
+        objectivesPlural: 'Goals',
+        kpis: 'Success Metric',
+        kpisPlural: 'Success Metrics',
+        targets: 'Performance Benchmark',
+        targetsPlural: 'Performance Benchmarks'
+      }
+    },
+    {
+      name: 'Operational Excellence',
+      description: 'Operations-focused terminology',
+      config: {
+        perspectives: 'Business Area',
+        perspectivesPlural: 'Business Areas',
+        objectives: 'Outcome',
+        objectivesPlural: 'Outcomes',
+        kpis: 'Performance Indicator',
+        kpisPlural: 'Performance Indicators',
+        targets: 'Standard',
+        targetsPlural: 'Standards'
+      }
+    }
+  ]
 
   const handleTermChange = (field: string, value: string) => {
     const newTerminology = { ...terminology, [field]: value }
@@ -29,29 +106,55 @@ export function TerminologyEditor({ settings, onChange }: TerminologyEditorProps
   }
 
   const applyPreset = (preset: TerminologyPreset) => {
-    setTerminology(preset.config)
-    onChange({ terminology: preset.config })
+    setTerminology({ ...defaultTerminology, ...preset.config })
+    onChange({ terminology: { ...defaultTerminology, ...preset.config } })
     setShowPresets(false)
   }
 
   const resetToDefault = () => {
     const defaultTerms = {
-      perspectives: 'Perspectives',
-      objectives: 'Objectives',
-      kpis: 'KPIs',
-      targets: 'Targets',
-      initiatives: 'Initiatives'
+      perspectives: 'Perspective',
+      perspectivesPlural: 'Perspectives',
+      objectives: 'Objective',
+      objectivesPlural: 'Objectives',
+      kpis: 'KPI',
+      kpisPlural: 'KPIs',
+      targets: 'Target',
+      targetsPlural: 'Targets'
     }
     setTerminology(defaultTerms)
     onChange({ terminology: defaultTerms })
   }
 
   const terms = [
-    { key: 'perspectives', label: 'Strategic Areas', placeholder: 'e.g., Perspectives, Pillars, Themes' },
-    { key: 'objectives', label: 'Goals', placeholder: 'e.g., Objectives, Goals, Outcomes' },
-    { key: 'kpis', label: 'Metrics', placeholder: 'e.g., KPIs, Metrics, Measures' },
-    { key: 'targets', label: 'Benchmarks', placeholder: 'e.g., Targets, Benchmarks, Standards' },
-    { key: 'initiatives', label: 'Actions', placeholder: 'e.g., Initiatives, Projects, Actions' }
+    { 
+      key: 'perspectives', 
+      keyPlural: 'perspectivesPlural',
+      label: 'Strategic Areas', 
+      placeholder: 'e.g., Perspective, Pillar, Theme',
+      placeholderPlural: 'e.g., Perspectives, Pillars, Themes'
+    },
+    { 
+      key: 'objectives', 
+      keyPlural: 'objectivesPlural',
+      label: 'Goals', 
+      placeholder: 'e.g., Objective, Goal, Outcome',
+      placeholderPlural: 'e.g., Objectives, Goals, Outcomes'
+    },
+    { 
+      key: 'kpis', 
+      keyPlural: 'kpisPlural',
+      label: 'Metrics', 
+      placeholder: 'e.g., KPI, Metric, Measure',
+      placeholderPlural: 'e.g., KPIs, Metrics, Measures'
+    },
+    { 
+      key: 'targets', 
+      keyPlural: 'targetsPlural',
+      label: 'Benchmarks', 
+      placeholder: 'e.g., Target, Benchmark, Standard',
+      placeholderPlural: 'e.g., Targets, Benchmarks, Standards'
+    }
   ]
 
   return (
@@ -105,16 +208,22 @@ export function TerminologyEditor({ settings, onChange }: TerminologyEditorProps
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-6">
         {terms.map((term) => (
-          <Input
-            key={term.key}
-            label={term.label}
-            value={terminology[term.key as keyof typeof terminology]}
-            onChange={(value) => handleTermChange(term.key, value)}
-            placeholder={term.placeholder}
-            helpText={`This will replace "${term.key}" throughout the system`}
-          />
+          <div key={term.key} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label={`${term.label} (Singular)`}
+              value={terminology[term.key as keyof typeof terminology]}
+              onChange={(value) => handleTermChange(term.key, value)}
+              placeholder={term.placeholder}
+            />
+            <Input
+              label={`${term.label} (Plural)`}
+              value={terminology[term.keyPlural as keyof typeof terminology]}
+              onChange={(value) => handleTermChange(term.keyPlural, value)}
+              placeholder={term.placeholderPlural}
+            />
+          </div>
         ))}
       </div>
 
@@ -126,24 +235,20 @@ export function TerminologyEditor({ settings, onChange }: TerminologyEditorProps
           </p>
           <div className="space-y-2">
             <div className="flex">
-              <span className="font-medium w-32">{terminology.perspectives}:</span>
+              <span className="font-medium w-40">{terminology.perspectives}/{terminology.perspectivesPlural}:</span>
               <span className="text-gray-600">Your strategic focus areas</span>
             </div>
             <div className="flex">
-              <span className="font-medium w-32">{terminology.objectives}:</span>
+              <span className="font-medium w-40">{terminology.objectives}/{terminology.objectivesPlural}:</span>
               <span className="text-gray-600">What you want to achieve</span>
             </div>
             <div className="flex">
-              <span className="font-medium w-32">{terminology.kpis}:</span>
+              <span className="font-medium w-40">{terminology.kpis}/{terminology.kpisPlural}:</span>
               <span className="text-gray-600">How you measure success</span>
             </div>
             <div className="flex">
-              <span className="font-medium w-32">{terminology.targets}:</span>
+              <span className="font-medium w-40">{terminology.targets}/{terminology.targetsPlural}:</span>
               <span className="text-gray-600">Your performance goals</span>
-            </div>
-            <div className="flex">
-              <span className="font-medium w-32">{terminology.initiatives}:</span>
-              <span className="text-gray-600">Actions to improve performance</span>
             </div>
           </div>
         </div>

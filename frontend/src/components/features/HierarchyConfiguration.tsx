@@ -28,6 +28,7 @@ interface LevelDefinition {
 
 interface HierarchyConfigurationProps {
   tenantId: string;
+  fiscalYearId: string; // New prop for fiscal year scoping
   onSuccess?: (message: string) => void;
   onError?: (message: string) => void;
 }
@@ -49,7 +50,7 @@ const DEFAULT_COLORS = [
   '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6B7280'
 ];
 
-export function HierarchyConfiguration({ tenantId, onSuccess, onError }: HierarchyConfigurationProps) {
+export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onError }: HierarchyConfigurationProps) {
   const textStyles = useTextStyles();
   const [levels, setLevels] = useState<LevelDefinition[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,7 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
 
   // Load existing level definitions
   useEffect(() => {
-    if (tenantId) {
+    if (tenantId && fiscalYearId) {
       // Ensure authentication token is set in apiClient
       const token = localStorage.getItem('metricsoft_auth_token');
       if (token) {
@@ -74,14 +75,14 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
     } else {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, fiscalYearId]);
 
   const loadLevelDefinitions = async () => {
     try {
-      const response = await apiClient.get<LevelDefinition[]>(`/tenants/${tenantId}/level-definitions`);
+      const response = await apiClient.get<{ levelDefinitions: LevelDefinition[] }>(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`);
 
-      if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
-        const sortedLevels = response.data.sort((a: LevelDefinition, b: LevelDefinition) => a.hierarchyLevel - b.hierarchyLevel);
+      if (response.success && response.data && response.data.levelDefinitions && Array.isArray(response.data.levelDefinitions) && response.data.levelDefinitions.length > 0) {
+        const sortedLevels = response.data.levelDefinitions.sort((a: LevelDefinition, b: LevelDefinition) => a.hierarchyLevel - b.hierarchyLevel);
         setLevels(sortedLevels);
       } else {
         // No levels exist, initialize defaults
@@ -131,22 +132,53 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
       }
     }
 
-    setLevels(prevLevels =>
-      prevLevels.map(l =>
-        (l.id === levelId || l.code === levelId) ? { ...l, isEnabled: enabled } : l
-      )
+    // Update local state
+    const updatedLevels = levels.map(l =>
+      (l.id === levelId || l.code === levelId) ? { ...l, isEnabled: enabled } : l
     );
+    setLevels(updatedLevels);
 
-    if (enabled) {
-      const message = level.isStandard 
-        ? `${level.name} level enabled successfully!`
-        : `"${level.name}" custom level added to Active Organizational Levels`;
-      onSuccess?.(message);
-    } else {
-      const message = level.isStandard
-        ? `${level.name} level disabled successfully`
-        : `"${level.name}" moved back to Custom Levels section`;
-      onSuccess?.(message);
+    // Save to backend immediately
+    try {
+      setSaving(true);
+      const payload = {
+        levelDefinitions: updatedLevels.map((level: LevelDefinition) => ({
+          id: level.id,
+          code: level.code,
+          name: level.name,
+          pluralName: level.pluralName,
+          hierarchyLevel: level.hierarchyLevel,
+          isStandard: level.isStandard,
+          isEnabled: level.isEnabled,
+          icon: level.icon,
+          color: level.color,
+          metadata: level.metadata || {}
+        }))
+      };
+      
+      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
+
+      if (response.success) {
+        const message = enabled 
+          ? (level.isStandard 
+             ? `${level.name} level enabled successfully!`
+             : `"${level.name}" custom level added to Active Organizational Levels`)
+          : (level.isStandard
+             ? `${level.name} level disabled successfully`
+             : `"${level.name}" moved back to Custom Levels section`);
+        onSuccess?.(message);
+        // Reload to ensure consistency
+        await loadLevelDefinitions();
+      } else {
+        throw new Error(response.error?.message || 'Failed to update level');
+      }
+    } catch (error) {
+      console.error('Error updating level:', error);
+      onError?.('Failed to update level. Please try again.');
+      // Revert local state on error
+      setLevels(levels);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -196,7 +228,7 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
       setSaving(true);
       
       const payload = {
-        levels: allUpdatedItems.map((level: LevelDefinition) => ({
+        levelDefinitions: allUpdatedItems.map((level: LevelDefinition) => ({
           id: level.id,
           code: level.code,
           name: level.name,
@@ -209,7 +241,7 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
         }))
       };
       
-      const response = await apiClient.put(`/tenants/${tenantId}/level-definitions`, payload);
+      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
 
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to save hierarchy order');
@@ -228,7 +260,7 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
     }
   };
 
-  const handleAddCustomLevel = () => {
+  const handleAddCustomLevel = async () => {
     if (!customLevelData.name.trim() || !customLevelData.pluralName.trim()) {
       onError?.('Please fill in both singular and plural names');
       return;
@@ -257,16 +289,53 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
       metadata: {}
     };
 
-    setLevels(prev => [...prev, newLevel as LevelDefinition]);
-    setShowAddCustomModal(false);
-    setCustomLevelData({
-      name: '',
-      pluralName: '',
-      icon: '📋',
-      color: DEFAULT_COLORS[0]
-    });
+    // Add to local state
+    const updatedLevels = [...levels, newLevel as LevelDefinition];
+    setLevels(updatedLevels);
     
-    onSuccess?.(`Custom level "${customLevelData.name}" created successfully! You can now enable it from the Custom Levels section.`);
+    // Save to backend immediately
+    try {
+      setSaving(true);
+      const payload = {
+        levelDefinitions: updatedLevels.map((level: LevelDefinition) => ({
+          id: level.id,
+          code: level.code,
+          name: level.name,
+          pluralName: level.pluralName,
+          hierarchyLevel: level.hierarchyLevel,
+          isStandard: level.isStandard,
+          isEnabled: level.isEnabled,
+          icon: level.icon,
+          color: level.color,
+          metadata: level.metadata || {}
+        }))
+      };
+      
+      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
+
+      if (response.success) {
+        setShowAddCustomModal(false);
+        setCustomLevelData({
+          name: '',
+          pluralName: '',
+          icon: '📋',
+          color: DEFAULT_COLORS[0]
+        });
+        
+        onSuccess?.(`Custom level "${customLevelData.name}" created and saved successfully! You can now enable it from the Custom Levels section.`);
+        // Reload to get any server-generated IDs
+        await loadLevelDefinitions();
+      } else {
+        throw new Error(response.error?.message || 'Failed to save custom level');
+      }
+    } catch (error) {
+      console.error('Error saving custom level:', error);
+      onError?.('Failed to save custom level. Please try again.');
+      // Revert local state on error
+      setLevels(levels);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleRemoveCustomLevel = (levelId: string) => {
@@ -293,7 +362,22 @@ export function HierarchyConfiguration({ tenantId, onSuccess, onError }: Hierarc
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await apiClient.put(`/tenants/${tenantId}/level-definitions`, { levels });
+      const payload = {
+        levelDefinitions: levels.map((level: LevelDefinition) => ({
+          id: level.id,
+          code: level.code,
+          name: level.name,
+          pluralName: level.pluralName,
+          hierarchyLevel: level.hierarchyLevel,
+          isStandard: level.isStandard,
+          isEnabled: level.isEnabled,
+          icon: level.icon,
+          color: level.color,
+          metadata: level.metadata || {}
+        }))
+      };
+      
+      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
 
       if (response.success) {
         onSuccess?.('Hierarchy configuration saved successfully!');

@@ -6,6 +6,10 @@ import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { OrganizationalStructure } from '@/components/features/OrganizationalStructure';
 import { HierarchyConfiguration } from '@/components/features/HierarchyConfiguration';
+import { PerformanceComponentsManager } from '@/components/features/PerformanceComponentsManager';
+import FiscalYearSelector from '@/components/FiscalYear/FiscalYearSelector';
+import FiscalYearCreator from '@/components/FiscalYear/FiscalYearCreator';
+import { Calendar, Building2, Target, Users } from 'lucide-react';
 
 interface TenantSettings {
   id: string;
@@ -50,15 +54,36 @@ interface Perspective {
   isActive: boolean;
 }
 
+interface FiscalYear {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: 'draft' | 'active' | 'locked' | 'archived';
+  isCurrent: boolean;
+  confirmations: Array<{
+    confirmationType: string;
+    confirmedAt: string;
+  }>;
+  _count: {
+    levelDefinitions: number;
+    perspectives: number;
+  };
+}
+
 function TenantSettingsContent() {
   const { user } = useAuth();
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [perspectives, setPerspectives] = useState<Perspective[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'hierarchy' | 'structure' | 'terminology' | 'fiscal' | 'branding' | 'perspectives'>('hierarchy');
+  const [activeTab, setActiveTab] = useState<'fiscal-year' | 'org-structure' | 'performance-components' | 'branding' | 'perspectives'>('fiscal-year');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Fiscal Year Management
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState<FiscalYear | null>(null);
+  const [showFiscalYearCreator, setShowFiscalYearCreator] = useState(false);
   
   // Super Admin specific state
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
@@ -282,10 +307,9 @@ function TenantSettingsContent() {
   }
 
   const tabs = [
-    { id: 'hierarchy', label: 'Hierarchy Configuration', icon: '🏗️', description: 'Configure organizational levels' },
-    { id: 'structure', label: 'Organization Structure', icon: '🏢', description: 'Manage organizational units' },
-    { id: 'terminology', label: 'Terminology', icon: '📝', description: 'Customize system terminology' },
-    { id: 'fiscal', label: 'Fiscal Settings', icon: '📅', description: 'Configure fiscal year and periods' },
+    { id: 'fiscal-year', label: 'Fiscal Year', icon: '📅', description: 'Manage fiscal years and timeline' },
+    { id: 'org-structure', label: 'Organizational Structure', icon: '🏢', description: 'Configure organizational levels' },
+    { id: 'performance-components', label: 'Performance Components', icon: '🎯', description: 'Setup performance management system' },
     { id: 'branding', label: 'Branding', icon: '🎨', description: 'Customize your brand appearance' },
     { id: 'perspectives', label: 'Perspectives', icon: '👁️', description: 'Manage strategic perspectives' }
   ];
@@ -423,130 +447,129 @@ function TenantSettingsContent() {
 
         {/* Tab Content */}
         <div className="p-6">
-          {/* Hierarchy Configuration Tab */}
-          {activeTab === 'hierarchy' && (
+          {/* Fiscal Year Management Tab */}
+          {activeTab === 'fiscal-year' && (
             <div className="space-y-6">
-              {/* Use the new HierarchyConfiguration component */}
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900">Fiscal Year Management</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Manage fiscal years for your organization. All organizational structures and performance components are scoped to fiscal years.
+                </p>
+              </div>
+              
+              {/* Fiscal Year Selector */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-md font-medium text-gray-900">Current Fiscal Year</h4>
+                  <button
+                    onClick={() => setShowFiscalYearCreator(true)}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Create New Fiscal Year
+                  </button>
+                </div>
+                
+                <FiscalYearSelector
+                  tenantId={selectedTenantId || user?.tenantId || ''}
+                  selectedFiscalYear={selectedFiscalYear}
+                  onFiscalYearChange={setSelectedFiscalYear}
+                  onCreateNew={() => setShowFiscalYearCreator(true)}
+                  className="max-w-md"
+                />
+
+                {selectedFiscalYear && (
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <Calendar className="w-5 h-5 text-blue-500 mt-0.5" />
+                      <div className="flex-1">
+                        <h5 className="font-medium text-blue-900">{selectedFiscalYear.name}</h5>
+                        <p className="text-sm text-blue-600 mt-1">
+                          {new Date(selectedFiscalYear.startDate).toLocaleDateString()} - {new Date(selectedFiscalYear.endDate).toLocaleDateString()}
+                        </p>
+                        <div className="mt-2 flex items-center space-x-4 text-xs text-blue-600">
+                          <span>Status: <strong>{selectedFiscalYear.status}</strong></span>
+                          <span>Org Levels: <strong>{selectedFiscalYear._count.levelDefinitions}</strong></span>
+                          <span>Perspectives: <strong>{selectedFiscalYear._count.perspectives}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Next Steps */}
+              {selectedFiscalYear && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h5 className="font-medium text-gray-900 mb-2">Next Steps</h5>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p>1. Configure your organizational structure in the "Organizational Structure" tab</p>
+                    <p>2. Set up performance components in the "Performance Components" tab</p>
+                    <p>3. Customize terminology and perspectives as needed</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Organizational Structure Tab */}
+          {activeTab === 'org-structure' && selectedFiscalYear && (
+            <div className="space-y-6">
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Organizational Structure - {selectedFiscalYear.name}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Configure the organizational levels for this fiscal year. This defines your hierarchy structure.
+                </p>
+              </div>
+              
+              {/* Use the updated HierarchyConfiguration component */}
               <HierarchyConfiguration 
                 tenantId={selectedTenantId || user?.tenantId || ''}
+                fiscalYearId={selectedFiscalYear.id}
                 onSuccess={setSuccessMessage}
                 onError={setErrorMessage}
               />
             </div>
           )}
 
-          {/* Organization Structure Tab */}
-          {activeTab === 'structure' && (
+          {/* Performance Components Tab */}
+          {activeTab === 'performance-components' && selectedFiscalYear && (
             <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Organization Structure Management
+              <div className="border-b border-gray-200 pb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Performance Components - {selectedFiscalYear.name}
                 </h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Create and manage your organizational units, departments, teams, and positions.
+                <p className="text-sm text-gray-600 mt-1">
+                  Configure performance management components for each organizational level.
                 </p>
               </div>
-
-              {/* Include the Organizational Structure component */}
-              <div className="bg-white border rounded-lg p-6">
-                <OrganizationalStructure />
-              </div>
+              
+              <PerformanceComponentsManager 
+                fiscalYearId={selectedFiscalYear.id}
+                onComplete={() => {
+                  // Handle completion - could show success message or redirect
+                  console.log('Performance components configuration completed');
+                }}
+              />
             </div>
           )}
 
-          {/* Terminology Tab */}
-          {activeTab === 'terminology' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Customize System Terminology
-                </h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Rename core elements to match your organization's language and culture.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.entries(formData.terminology).map(([key, value]) => (
-                  <div key={key} className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      {key.charAt(0).toUpperCase() + key.slice(1)}
-                    </label>
-                    <input
-                      type="text"
-                      value={value}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          terminology: {
-                            ...formData.terminology,
-                            [key]: e.target.value
-                          }
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder={`Enter custom term for ${key}`}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">📋 Preview</h4>
-                <p className="text-sm text-blue-800">
-                  Your navigation will show: <strong>{Object.values(formData.terminology).join(' • ')}</strong>
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Fiscal Settings Tab */}
-          {activeTab === 'fiscal' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Fiscal Year Configuration
-                </h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Configure your organization's fiscal year and reporting periods.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Fiscal Year Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.fiscalYearStart}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        fiscalYearStart: e.target.value
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <p className="text-xs text-gray-500">
-                    When does your fiscal year begin?
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Reporting Frequency
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="annually">Annually</option>
-                  </select>
-                  <p className="text-xs text-gray-500">
-                    How often do you collect performance data?
-                  </p>
-                </div>
-              </div>
+          {/* Message when no fiscal year selected */}
+          {(activeTab === 'org-structure' || activeTab === 'performance-components') && !selectedFiscalYear && (
+            <div className="text-center py-12">
+              <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Fiscal Year Selected</h3>
+              <p className="text-gray-600 mb-6">
+                Please select or create a fiscal year to manage organizational structure and performance components.
+              </p>
+              <button
+                onClick={() => setActiveTab('fiscal-year')}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Go to Fiscal Year Management
+              </button>
             </div>
           )}
 
@@ -642,10 +665,10 @@ function TenantSettingsContent() {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {formData.terminology.perspectives}
+                    Perspectives
                   </h3>
                   <p className="text-sm text-gray-600">
-                    Manage your strategic {formData.terminology.perspectives.toLowerCase()}.
+                    Manage your strategic perspectives.
                   </p>
                 </div>
                 <button
@@ -655,7 +678,7 @@ function TenantSettingsContent() {
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Add {formData.terminology.perspectives.slice(0, -1)}
+                  Add Perspective
                 </button>
               </div>
 
@@ -684,16 +707,16 @@ function TenantSettingsContent() {
                 <div className="text-center py-12">
                   <div className="text-gray-400 text-6xl mb-4">👁️</div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    No {formData.terminology.perspectives} Yet
+                    No Perspectives Yet
                   </h3>
                   <p className="text-gray-600 mb-6 max-w-sm mx-auto">
-                    Start by adding your first strategic {formData.terminology.perspectives.toLowerCase().slice(0, -1)} to organize your performance metrics.
+                    Start by adding your first strategic perspective to organize your performance metrics.
                   </p>
                   <button
                     onClick={handleAddPerspective}
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
-                    Add Your First {formData.terminology.perspectives.slice(0, -1)}
+                    Add Your First Perspective
                   </button>
                 </div>
               )}
@@ -701,7 +724,7 @@ function TenantSettingsContent() {
           )}
 
           {/* Save Button for non-perspective tabs */}
-          {(activeTab === 'terminology' || activeTab === 'fiscal' || activeTab === 'branding') && (
+          {activeTab === 'branding' && (
             <div className="pt-6 border-t border-gray-200">
               <div className="flex justify-end">
                 <button
@@ -726,6 +749,28 @@ function TenantSettingsContent() {
           )}
         </div>
       </div>
+      
+      {/* Fiscal Year Creator Modal */}
+      <FiscalYearCreator
+        tenantId={selectedTenantId || user?.tenantId || ''}
+        isOpen={showFiscalYearCreator}
+        onClose={() => setShowFiscalYearCreator(false)}
+        onFiscalYearCreated={(newFiscalYear) => {
+          // Convert the created fiscal year to our extended type
+          const extendedFiscalYear: FiscalYear = {
+            ...newFiscalYear,
+            status: newFiscalYear.status as 'draft' | 'active' | 'locked' | 'archived',
+            confirmations: [],
+            _count: {
+              levelDefinitions: 0,
+              perspectives: 0
+            }
+          };
+          setSelectedFiscalYear(extendedFiscalYear);
+          setShowFiscalYearCreator(false);
+          setSuccessMessage(`Fiscal Year "${newFiscalYear.name}" created successfully!`);
+        }}
+      />
         </>
       )}
     </div>

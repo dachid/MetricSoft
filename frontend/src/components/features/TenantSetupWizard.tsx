@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useTenantSettings, useSetupWizard } from '../../hooks/useTenant'
+import { useTenantSettings, useSetupWizard, useFiscalYears } from '../../hooks/useTenant'
 import { Button, Card, ProgressBar } from '../ui'
 import { QuickSetupSelector } from './QuickSetupSelector'
 import { TerminologyEditor } from './TerminologyEditor'
@@ -8,6 +8,7 @@ import { SetupPreview } from './SetupPreview'
 
 export function TenantSetupWizard() {
   const { settings, updateSettings, isUpdating } = useTenantSettings()
+  const { currentFiscalYear, isLoading: isFiscalYearLoading } = useFiscalYears()
   const {
     currentStep,
     totalSteps,
@@ -60,7 +61,7 @@ export function TenantSetupWizard() {
       subtitle: 'Customize your language',
       component: (
         <TerminologyEditor 
-          settings={settings}
+          terminology={settings?.terminology}
           onChange={handleLocalChange}
         />
       )
@@ -69,7 +70,13 @@ export function TenantSetupWizard() {
       id: 3,
       title: 'Perspectives',
       subtitle: 'Define your strategic areas',
-      component: <PerspectiveManager />
+      component: currentFiscalYear ? (
+        <PerspectiveManager fiscalYearId={currentFiscalYear.id} />
+      ) : (
+        <div className="text-center text-gray-500">
+          Loading fiscal year...
+        </div>
+      )
     },
     {
       id: 4,
@@ -77,7 +84,7 @@ export function TenantSetupWizard() {
       subtitle: 'Confirm your setup',
       component: (
         <SetupPreview 
-          settings={{ ...settings, ...localChanges }}
+          settings={{ ...(settings || {}), ...localChanges }}
           onComplete={handleCompleteSetup}
         />
       )
@@ -86,7 +93,7 @@ export function TenantSetupWizard() {
 
   const currentStepData = steps[currentStep - 1]
 
-  if (!settings) {
+  if (!settings || isFiscalYearLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -168,7 +175,7 @@ export function TenantSetupWizard() {
             <div className="w-80">
               <Card title="Preview" className="sticky top-8">
                 <SetupPreview 
-                  settings={{ ...settings, ...localChanges }}
+                  settings={{ ...(settings || {}), ...localChanges }}
                   compact={true}
                 />
               </Card>

@@ -377,7 +377,7 @@ export function OrganizationSetupWizard({
                   <h4 className="font-medium text-gray-900 mb-3">Add Custom Level</h4>
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <Label htmlFor="customName">Level Name (Singular)</Label>
+                      <Label htmlFor="customName">Singular Name</Label>
                       <input
                         type="text"
                         id="customName"
@@ -391,7 +391,7 @@ export function OrganizationSetupWizard({
                       />
                     </div>
                     <div>
-                      <Label htmlFor="customPlural">Level Name (Plural)</Label>
+                      <Label htmlFor="customPlural">Plural Name</Label>
                       <input
                         type="text"
                         id="customPlural"

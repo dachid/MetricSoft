@@ -7,8 +7,40 @@ interface QuickSetupSelectorProps {
 }
 
 export function QuickSetupSelector({ onNext }: QuickSetupSelectorProps) {
-  const { quickSetup, isQuickSetting } = useTenantSettings()
-  const quickSetupOptions = tenantApiService.getQuickSetupOptions()
+  // Temporary mock data and functions for Phase 1
+  const quickSetup = async (option: any) => { console.log('Quick setup:', option); };
+  const isQuickSetting = false;
+  const quickSetupOptions = [
+    { 
+      id: 'basic', 
+      name: 'Basic Setup', 
+      description: 'Quick start with default settings',
+      icon: '⚡',
+      terminology: {
+        perspectives: 'Perspectives',
+        objectives: 'Objectives',
+        kpis: 'KPIs'
+      },
+      defaultPerspectives: [
+        { name: 'Financial', color: '#10B981', code: 'financial' },
+        { name: 'Customer', color: '#3B82F6', code: 'customer' }
+      ],
+      estimatedTime: '5 minutes'
+    },
+    { 
+      id: 'advanced', 
+      name: 'Advanced Setup', 
+      description: 'Custom configuration',
+      icon: '🔧',
+      terminology: {
+        perspectives: 'Strategic Areas',
+        objectives: 'Goals',
+        kpis: 'Metrics'
+      },
+      defaultPerspectives: [],
+      estimatedTime: '15 minutes'
+    }
+  ];
 
   const handleQuickSetup = async (option: any) => {
     try {

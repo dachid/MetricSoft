@@ -1,6 +1,13 @@
-import { usePerspectives } from '../../hooks/useTenant'
+// import { usePerspectives } from '../../hooks/useTenant' // Temporarily disabled - will be implemented in Phase 2
 import { Button, Card, Badge } from '../ui'
-import { TenantSettings } from '../../types/tenant'
+// import { TenantSettings } from '../../types/tenant' // Temporarily disabled - will be implemented in Phase 2
+
+// Temporary type definition for Phase 1
+interface TenantSettings {
+  terminology?: any;
+  branding?: any;
+  setupCompleted?: boolean;
+}
 
 interface SetupPreviewProps {
   settings?: Partial<TenantSettings>
@@ -9,7 +16,8 @@ interface SetupPreviewProps {
 }
 
 export function SetupPreview({ settings, compact = false, onComplete }: SetupPreviewProps) {
-  const { perspectives } = usePerspectives()
+  // Temporary mock data for Phase 1
+  const perspectives: any[] = [];
 
   if (!settings) {
     return (

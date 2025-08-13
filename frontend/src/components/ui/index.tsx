@@ -487,3 +487,8 @@ export function Separator({ className = '', orientation = 'horizontal' }: Separa
   )
 }
 
+// Export other components
+export { DatabaseStatus } from './DatabaseStatus';
+export { ErrorDisplay } from './ErrorDisplay';
+export { ConfirmationDialog } from './ConfirmationDialog';
+

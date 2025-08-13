@@ -1,61 +1,187 @@
-import { useState } from 'react'
-import { usePerspectives } from '../../hooks/useTenant'
+import { useState, useEffect } from 'react'
+import { useAuth } from '../../lib/auth-context'
 import { Input, Button, Card } from '../ui'
 
-export function PerspectiveManager() {
-  const { 
-    perspectives, 
-    createPerspective, 
-    updatePerspective, 
-    deletePerspective,
-    isCreating 
-  } = usePerspectives()
+interface Perspective {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  color: string;
+  icon?: string;
+  sequenceOrder: number;
+  isActive: boolean;
+}
 
-  const [isAddingNew, setIsAddingNew] = useState(false)
+interface PerspectiveManagerProps {
+  fiscalYearId: string;
+  onPerspectivesChange?: (perspectives: Perspective[]) => void;
+}
+
+export function PerspectiveManager({ fiscalYearId, onPerspectivesChange }: PerspectiveManagerProps) {
+  const { user } = useAuth();
+  const [perspectives, setPerspectives] = useState<Perspective[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
   const [newPerspective, setNewPerspective] = useState({
     name: '',
     description: '',
     color: '#3B82F6'
-  })
+  });
 
   const predefinedColors = [
     '#3B82F6', '#10B981', '#F59E0B', '#EF4444', 
     '#8B5CF6', '#06B6D4', '#84CC16', '#F97316',
     '#EC4899', '#6B7280', '#14B8A6', '#F43F5E'
-  ]
+  ];
+
+  // Load perspectives for fiscal year
+  useEffect(() => {
+    if (fiscalYearId && user?.tenantId) {
+      loadPerspectives();
+    }
+  }, [fiscalYearId, user?.tenantId]);
+
+  const loadPerspectives = async () => {
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('metricsoft_auth_token');
+      const response = await fetch(`/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/perspectives`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPerspectives(data.perspectives || []);
+        onPerspectivesChange?.(data.perspectives || []);
+      }
+    } catch (error) {
+      console.error('Error loading perspectives:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createPerspective = async (perspectiveData: any) => {
+    try {
+      setIsCreating(true);
+      const token = localStorage.getItem('metricsoft_auth_token');
+      const response = await fetch(`/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/perspectives`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(perspectiveData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedPerspectives = [...perspectives, data.perspective];
+        setPerspectives(updatedPerspectives);
+        onPerspectivesChange?.(updatedPerspectives);
+        return data.perspective;
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create perspective');
+      }
+    } catch (error) {
+      console.error('Error creating perspective:', error);
+      throw error;
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const updatePerspective = async (perspectiveId: string, updates: any) => {
+    try {
+      const token = localStorage.getItem('metricsoft_auth_token');
+      const response = await fetch(`/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/perspectives/${perspectiveId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updatedPerspectives = perspectives.map(p => 
+          p.id === perspectiveId ? data.perspective : p
+        );
+        setPerspectives(updatedPerspectives);
+        onPerspectivesChange?.(updatedPerspectives);
+      }
+    } catch (error) {
+      console.error('Error updating perspective:', error);
+    }
+  };
+
+  const deletePerspective = async (perspectiveId: string) => {
+    try {
+      const token = localStorage.getItem('metricsoft_auth_token');
+      const response = await fetch(`/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/perspectives/${perspectiveId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const updatedPerspectives = perspectives.filter(p => p.id !== perspectiveId);
+        setPerspectives(updatedPerspectives);
+        onPerspectivesChange?.(updatedPerspectives);
+      }
+    } catch (error) {
+      console.error('Error deleting perspective:', error);
+    }
+  };
 
   const handleCreatePerspective = async () => {
-    if (!newPerspective.name.trim()) return
+    if (!newPerspective.name.trim()) return;
 
     try {
       await createPerspective({
         name: newPerspective.name.trim(),
         description: newPerspective.description.trim() || undefined,
         color: newPerspective.color,
-        code: '', // Will be auto-generated from name
-        sortOrder: perspectives.length + 1,
-        isActive: true
-      })
+        icon: undefined
+      });
       
       // Reset form
       setNewPerspective({
         name: '',
         description: '',
         color: '#3B82F6'
-      })
-      setIsAddingNew(false)
+      });
+      setIsAddingNew(false);
     } catch (error) {
-      console.error('Failed to create perspective:', error)
+      console.error('Failed to create perspective:', error);
+      // Show error to user (could add toast notification here)
     }
-  }
+  };
 
   const handleColorChange = (perspectiveId: string, color: string) => {
-    updatePerspective({ id: perspectiveId, updates: { color } })
-  }
+    updatePerspective(perspectiveId, { color });
+  };
 
   const handleNameChange = (perspectiveId: string, name: string) => {
     // Debounced update would be implemented here
-    updatePerspective({ id: perspectiveId, updates: { name } })
+    updatePerspective(perspectiveId, { name });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   return (
