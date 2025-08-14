@@ -202,67 +202,71 @@ export function CascadeVisualizer({
         </div>
       </Card>
 
-      {/* Cascade Summary */}
-      <Card title="Cascade Summary" className="bg-green-50 border-green-200">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h4 className="font-medium text-green-900 mb-2">Cascade Relationships</h4>
-              <div className="space-y-2">
-                {cascadeRelationships.map((rel, index) => {
-                  const fromLevel = orgLevels.find(l => l.id === rel.fromLevelId)
-                  const toLevel = orgLevels.find(l => l.id === rel.toLevelId)
-                  return (
-                    <div key={index} className="text-sm text-green-800">
-                      <span className="font-medium">{fromLevel?.name}</span>
-                      {' → '}
-                      <span className="font-medium">{toLevel?.name}</span>
-                    </div>
-                  )
-                })}
+      {/* Cascade Summary - Hide when read-only/locked */}
+      {!isReadOnly && (
+        <Card title="Cascade Summary" className="bg-green-50 border-green-200">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-green-900 mb-2">Cascade Relationships</h4>
+                <div className="space-y-2">
+                  {cascadeRelationships.map((rel, index) => {
+                    const fromLevel = orgLevels.find(l => l.id === rel.fromLevelId)
+                    const toLevel = orgLevels.find(l => l.id === rel.toLevelId)
+                    return (
+                      <div key={index} className="text-sm text-green-800">
+                        <span className="font-medium">{fromLevel?.name}</span>
+                        {' → '}
+                        <span className="font-medium">{toLevel?.name}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-green-900 mb-2">Performance Flow</h4>
+                <div className="text-sm text-green-800 space-y-1">
+                  <div>• {terminology.objectives} cascade down as targets</div>
+                  <div>• {terminology.kpis} provide measurement consistency</div>
+                  <div>• {terminology.initiatives} drive performance improvement</div>
+                  <div>• Each level contributes to organizational success</div>
+                </div>
               </div>
             </div>
-            
-            <div>
-              <h4 className="font-medium text-green-900 mb-2">Performance Flow</h4>
-              <div className="text-sm text-green-800 space-y-1">
-                <div>• {terminology.objectives} cascade down as targets</div>
-                <div>• {terminology.kpis} provide measurement consistency</div>
-                <div>• {terminology.initiatives} drive performance improvement</div>
-                <div>• Each level contributes to organizational success</div>
+
+            {cascadeRelationships.length === 0 && (
+              <div className="text-center text-yellow-600 py-4">
+                ⚠️ No cascade relationships detected. Ensure exit and entry components are properly configured.
               </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Component Legend - Hide when read-only/locked */}
+      {!isReadOnly && (
+        <Card title="Component Legend" className="bg-gray-50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="flex items-center">
+              <div className="w-4 h-4 bg-green-100 border-l-4 border-green-500 mr-2"></div>
+              <span>Entry Component</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-4 h-4 bg-gray-100 mr-2"></div>
+              <span>Standard Component</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-4 h-4 bg-blue-100 border-r-4 border-blue-500 mr-2"></div>
+              <span>Exit Component</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-4 h-4 bg-yellow-100 mr-2"></div>
+              <span>Optional Component</span>
             </div>
           </div>
-
-          {cascadeRelationships.length === 0 && (
-            <div className="text-center text-yellow-600 py-4">
-              ⚠️ No cascade relationships detected. Ensure exit and entry components are properly configured.
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* Legend */}
-      <Card title="Component Legend" className="bg-gray-50">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div className="flex items-center">
-            <div className="w-4 h-4 bg-green-100 border-l-4 border-green-500 mr-2"></div>
-            <span>Entry Component</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 bg-gray-100 mr-2"></div>
-            <span>Standard Component</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 bg-blue-100 border-r-4 border-blue-500 mr-2"></div>
-            <span>Exit Component</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 bg-yellow-100 mr-2"></div>
-            <span>Optional Component</span>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      )}
     </div>
   )
 }

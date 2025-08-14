@@ -257,7 +257,8 @@ export function ReadOnlyPerformanceComponents({
         </div>
       </Card>
 
-      {/* Cascade Flow Display */}
+      {/* Performance Flow - Hide when locked (since we're in read-only, always hide this) */}
+      {/* This section is hidden for locked configurations per user request
       <Card title="Performance Flow" subtitle="How performance cascades between organizational levels">
         <CascadeVisualizer 
           orgLevels={orgLevels}
@@ -267,6 +268,7 @@ export function ReadOnlyPerformanceComponents({
           isReadOnly={true}
         />
       </Card>
+      */}
 
       {/* Support Contact */}
       <div className="bg-gray-50 rounded-lg p-4 text-center">

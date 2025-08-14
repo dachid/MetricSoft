@@ -391,13 +391,6 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className={`${defaultComponentClasses.heading2} mb-2`}>Organizational Hierarchy Configuration</h2>
-        <p className="text-gray-600">
-          Configure which organizational levels are active and create custom levels as needed. 
-          Drag and drop to reorder levels in your hierarchy.
-        </p>
-      </div>
 
       {/* Unsaved Changes Indicator */}
       {hasUnsavedChanges && (
@@ -523,148 +516,154 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
         )}
       </div>
 
-      {/* Available Standard Levels */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Available Standard Levels</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {standardLevels.filter(l => !l.isEnabled).map((level) => (
-            <div key={level.id || level.code} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{level.icon}</span>
-                  <div>
-                    <div className="font-medium text-gray-900">{level.name}</div>
-                    <div className="text-sm text-gray-500">{level.pluralName}</div>
+      {/* Available Standard Levels - Only show when not confirmed */}
+      {!isConfirmed && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Available Standard Levels</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {standardLevels.filter(l => !l.isEnabled).map((level) => (
+              <div key={level.id || level.code} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{level.icon}</span>
+                    <div>
+                      <div className="font-medium text-gray-900">{level.name}</div>
+                      <div className="text-sm text-gray-500">{level.pluralName}</div>
+                    </div>
                   </div>
-                </div>
-                <button
-                  onClick={() => handleToggleLevel(level.id || level.code, true)}
-                  className={`px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${
-                    isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                  disabled={isConfirmed}
-                >
-                  Enable
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {standardLevels.filter(l => !l.isEnabled).length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <div className="text-4xl mb-2">✅</div>
-            <p className="text-sm">All standard levels are currently enabled</p>
-          </div>
-        )}
-      </div>
-
-      {/* Custom Levels */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Custom Levels</h3>
-          <button
-            onClick={() => setShowAddCustomModal(true)}
-            className={`flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ${
-              isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-            disabled={isConfirmed}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span>Add Custom Level</span>
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {customLevels.map((level) => (
-            <div key={level.id} className={`border rounded-lg p-4 ${
-              level.isEnabled ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">{level.icon}</span>
-                  <div>
-                    <div className="font-medium text-gray-900">{level.name}</div>
-                    <div className="text-sm text-gray-500">{level.pluralName}</div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div 
-                    className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
-                    style={{ backgroundColor: level.color }}
-                  ></div>
-                  {level.isEnabled ? (
-                    <button
-                      onClick={() => handleToggleLevel(level.id, false)}
-                      className={`px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors ${
-                        isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                      disabled={isConfirmed}
-                    >
-                      Disable
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleToggleLevel(level.id, true)}
-                      className={`px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${
-                        isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                      disabled={isConfirmed}
-                    >
-                      Enable
-                    </button>
-                  )}
                   <button
-                    onClick={() => handleDeleteCustomLevel(level.id)}
-                    className={`text-red-600 hover:text-red-800 transition-colors ${
+                    onClick={() => handleToggleLevel(level.id || level.code, true)}
+                    className={`px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${
                       isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
-                    title="Delete custom level"
                     disabled={isConfirmed}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    Enable
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {customLevels.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <div className="text-4xl mb-2">📋</div>
-            <p className="text-sm">No custom levels created yet</p>
-            <p className="text-xs mt-1">Add custom levels like "Region", "Business Unit", etc.</p>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* Hierarchy Preview */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h4 className="text-lg font-medium text-blue-900 mb-4">Hierarchy Preview</h4>
-        <div className="space-y-2">
-          {enabledLevels.map((level, index) => (
-            <div key={level.id || level.code} className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2" style={{ paddingLeft: `${index * 24}px` }}>
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: level.color }}
-                ></div>
-                <span className="text-sm font-medium text-blue-900">
-                  Level {index + 1}: {level.name}
-                </span>
-              </div>
+          {standardLevels.filter(l => !l.isEnabled).length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <div className="text-4xl mb-2">✅</div>
+              <p className="text-sm">All standard levels are currently enabled</p>
             </div>
-          ))}
-          {enabledLevels.length === 0 && (
-            <p className="text-blue-700 text-sm">Configure levels above to see hierarchy preview</p>
           )}
         </div>
-      </div>
+      )}
+
+      {/* Custom Levels - Only show when not confirmed */}
+      {!isConfirmed && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Custom Levels</h3>
+            <button
+              onClick={() => setShowAddCustomModal(true)}
+              className={`flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ${
+                isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              disabled={isConfirmed}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span>Add Custom Level</span>
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {customLevels.map((level) => (
+              <div key={level.id} className={`border rounded-lg p-4 ${
+                level.isEnabled ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{level.icon}</span>
+                    <div>
+                      <div className="font-medium text-gray-900">{level.name}</div>
+                      <div className="text-sm text-gray-500">{level.pluralName}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                      style={{ backgroundColor: level.color }}
+                    ></div>
+                    {level.isEnabled ? (
+                      <button
+                        onClick={() => handleToggleLevel(level.id, false)}
+                        className={`px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors ${
+                          isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        disabled={isConfirmed}
+                      >
+                        Disable
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleToggleLevel(level.id, true)}
+                        className={`px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${
+                          isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        disabled={isConfirmed}
+                      >
+                        Enable
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteCustomLevel(level.id)}
+                      className={`text-red-600 hover:text-red-800 transition-colors ${
+                        isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      title="Delete custom level"
+                      disabled={isConfirmed}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {customLevels.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <div className="text-4xl mb-2">📋</div>
+              <p className="text-sm">No custom levels created yet</p>
+              <p className="text-xs mt-1">Add custom levels like "Region", "Business Unit", etc.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hierarchy Preview - Only show when not confirmed */}
+      {!isConfirmed && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h4 className="text-lg font-medium text-blue-900 mb-4">Hierarchy Preview</h4>
+          <div className="space-y-2">
+            {enabledLevels.map((level, index) => (
+              <div key={level.id || level.code} className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2" style={{ paddingLeft: `${index * 24}px` }}>
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: level.color }}
+                  ></div>
+                  <span className="text-sm font-medium text-blue-900">
+                    Level {index + 1}: {level.name}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {enabledLevels.length === 0 && (
+              <p className="text-blue-700 text-sm">Configure levels above to see hierarchy preview</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Save Button */}
       {!isConfirmed && (

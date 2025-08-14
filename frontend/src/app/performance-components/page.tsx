@@ -239,6 +239,70 @@ function PerformanceComponentsContent() {
             </div>
           )}
 
+          {/* Fiscal Year Selection - Always show when fiscal years exist */}
+          {fiscalYears.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Performance Components</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Configure performance management components for each organizational level.
+                  </p>
+                </div>
+                {selectedFiscalYear && selectedFiscalYear._count.levelDefinitions > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <Target className="w-5 h-5 text-green-500" />
+                    <span className="text-sm font-medium text-green-600">
+                      {selectedFiscalYear._count.levelDefinitions} Org Levels Configured
+                    </span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Fiscal Year
+                </label>
+                <div className="max-w-md">
+                  <select
+                    value={selectedFiscalYear?.id || ''}
+                    onChange={(e) => {
+                      const fy = fiscalYears.find(f => f.id === e.target.value);
+                      setSelectedFiscalYear(fy || null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select a fiscal year...</option>
+                    {fiscalYears.map((fy) => (
+                      <option key={fy.id} value={fy.id}>
+                        {fy.name} ({fy.status}) {fy.isCurrent ? '(Current)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {selectedFiscalYear && (
+                <div className="bg-blue-50 rounded-lg p-4 mb-6">
+                  <div className="flex items-start space-x-3">
+                    <Calendar className="w-5 h-5 text-blue-500 mt-0.5" />
+                    <div className="flex-1">
+                      <h5 className="font-medium text-blue-900">{selectedFiscalYear.name}</h5>
+                      <p className="text-sm text-blue-600 mt-1">
+                        {new Date(selectedFiscalYear.startDate).toLocaleDateString()} - {new Date(selectedFiscalYear.endDate).toLocaleDateString()}
+                      </p>
+                      <div className="mt-2 flex items-center space-x-4 text-xs text-blue-600">
+                        <span>Status: <strong className="capitalize">{selectedFiscalYear.status}</strong></span>
+                        <span>Org Levels: <strong>{selectedFiscalYear._count.levelDefinitions}</strong></span>
+                        <span>Perspectives: <strong>{selectedFiscalYear._count.perspectives}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Check Organizational Structure Exists and is Confirmed */}
           {fiscalYears.length > 0 && selectedFiscalYear && (
             selectedFiscalYear._count.levelDefinitions === 0 || 
@@ -277,94 +341,31 @@ function PerformanceComponentsContent() {
             </div>
           )}
 
-          {/* Main Content - Only show if all prerequisites are met */}
+          {/* Performance Components Manager - Only show if all prerequisites are met */}
           {fiscalYears.length > 0 && 
            selectedFiscalYear && 
            selectedFiscalYear._count.levelDefinitions > 0 && 
            selectedFiscalYear.confirmations.some(c => c.confirmationType === 'org_structure') && (
             <>
-              {/* Fiscal Year Selection */}
               <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900">Performance Components</h2>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Configure performance management components for each organizational level.
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Target className="w-5 h-5 text-green-500" />
-                    <span className="text-sm font-medium text-green-600">
-                      {selectedFiscalYear?._count?.levelDefinitions} Org Levels Configured
-                    </span>
-                  </div>
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Component Configuration - {selectedFiscalYear.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Configure performance components for each organizational level in this fiscal year.
+                  </p>
                 </div>
                 
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Fiscal Year
-                  </label>
-                  <div className="max-w-md">
-                    <select
-                      value={selectedFiscalYear?.id || ''}
-                      onChange={(e) => {
-                        const fy = fiscalYears.find(f => f.id === e.target.value);
-                        setSelectedFiscalYear(fy || null);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select a fiscal year...</option>
-                      {fiscalYears.map((fy) => (
-                        <option key={fy.id} value={fy.id}>
-                          {fy.name} ({fy.status}) {fy.isCurrent ? '(Current)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {selectedFiscalYear && (
-                  <div className="bg-blue-50 rounded-lg p-4 mb-6">
-                    <div className="flex items-start space-x-3">
-                      <Calendar className="w-5 h-5 text-blue-500 mt-0.5" />
-                      <div className="flex-1">
-                        <h5 className="font-medium text-blue-900">{selectedFiscalYear.name}</h5>
-                        <p className="text-sm text-blue-600 mt-1">
-                          {new Date(selectedFiscalYear.startDate).toLocaleDateString()} - {new Date(selectedFiscalYear.endDate).toLocaleDateString()}
-                        </p>
-                        <div className="mt-2 flex items-center space-x-4 text-xs text-blue-600">
-                          <span>Status: <strong className="capitalize">{selectedFiscalYear.status}</strong></span>
-                          <span>Org Levels: <strong>{selectedFiscalYear._count.levelDefinitions}</strong></span>
-                          <span>Perspectives: <strong>{selectedFiscalYear._count.perspectives}</strong></span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <PerformanceComponentsManager 
+                  fiscalYearId={selectedFiscalYear.id}
+                  tenantId={isSuperAdmin ? selectedTenantId || '' : user?.tenantId || ''}
+                  onComplete={() => {
+                    setSuccessMessage('Performance components configuration completed successfully!');
+                    setTimeout(() => setSuccessMessage(''), 5000);
+                  }}
+                />
               </div>
-
-              {/* Performance Components Manager */}
-              {selectedFiscalYear && (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Component Configuration - {selectedFiscalYear.name}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Configure performance components for each organizational level in this fiscal year.
-                    </p>
-                  </div>
-                  
-                  <PerformanceComponentsManager 
-                    fiscalYearId={selectedFiscalYear.id}
-                    tenantId={isSuperAdmin ? selectedTenantId || '' : user?.tenantId || ''}
-                    onComplete={() => {
-                      setSuccessMessage('Performance components configuration completed successfully!');
-                      setTimeout(() => setSuccessMessage(''), 5000);
-                    }}
-                  />
-                </div>
-              )}
 
               {/* Next Steps */}
               <div className="bg-gray-50 rounded-lg p-6">

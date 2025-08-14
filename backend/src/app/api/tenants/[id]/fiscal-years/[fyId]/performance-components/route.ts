@@ -360,6 +360,19 @@ export async function POST(
       }
     });
 
+    // Update fiscal year status to 'locked' when performance components are confirmed
+    // This indicates that the fiscal year setup is complete and locked
+    const fiscalYear = await prisma.fiscalYear.findUnique({
+      where: { id: fiscalYearId }
+    });
+
+    if (fiscalYear && (fiscalYear.status === 'active' || fiscalYear.status === 'draft')) {
+      await prisma.fiscalYear.update({
+        where: { id: fiscalYearId },
+        data: { status: 'locked' }
+      });
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Performance components confirmed successfully',

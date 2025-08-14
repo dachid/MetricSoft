@@ -450,6 +450,129 @@ export function ComponentBuilder({
             </div>
           )}
 
+          {/* Level Navigation Button */}
+          {selectedLevel && (
+            (() => {
+              // Sort levels by hierarchy to find next and previous levels
+              const sortedLevels = [...orgLevels].sort((a, b) => a.hierarchyLevel - b.hierarchyLevel)
+              const currentIndex = sortedLevels.findIndex(level => level.id === selectedLevel.id)
+              const nextLevel = sortedLevels[currentIndex + 1]
+              const previousLevel = sortedLevels[currentIndex - 1]
+              const isFirstLevel = currentIndex === 0
+              const isLastLevel = currentIndex === sortedLevels.length - 1
+              
+              // Check if current level has components configured
+              const hasComponents = selectedComponents.length > 0
+              
+              if (!hasComponents) {
+                return (
+                  <div className="mt-4 space-y-3">
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-700">
+                        Configure components for <strong>{selectedLevel.name}</strong> before proceeding.
+                      </p>
+                    </div>
+                    
+                    {/* Back button even when current level not configured */}
+                    {!isFirstLevel && previousLevel && (
+                      <button
+                        onClick={() => setSelectedLevelId(previousLevel.id)}
+                        className="w-full px-4 py-3 text-sm font-medium bg-gray-100 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-200 hover:border-gray-400 flex items-center justify-center space-x-2 transition-all"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        <span>← Back to <strong>{previousLevel.name}</strong></span>
+                      </button>
+                    )}
+                  </div>
+                )
+              }
+              
+              if (isLastLevel) {
+                return (
+                  <div className="mt-4 space-y-3">
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-sm font-medium text-green-700">
+                          All organizational levels configured! Use "Review Configuration" to proceed.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Back button for last level */}
+                    {!isFirstLevel && previousLevel && (
+                      <button
+                        onClick={() => setSelectedLevelId(previousLevel.id)}
+                        className="w-full px-4 py-3 text-sm font-medium bg-gray-100 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-200 hover:border-gray-400 flex items-center justify-center space-x-2 transition-all"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        <span>← Back to <strong>{previousLevel.name}</strong></span>
+                      </button>
+                    )}
+                  </div>
+                )
+              }
+              
+              if (nextLevel) {
+                // Check if next level has components
+                const nextLevelComponents = componentsByLevel[nextLevel.id]
+                const nextLevelComponentsArray = Array.isArray(nextLevelComponents) 
+                  ? nextLevelComponents 
+                  : (nextLevelComponents as any)?.components || []
+                const nextLevelConfigured = nextLevelComponentsArray.length > 0
+                
+                return (
+                  <div className="mt-4 space-y-3">
+                    <button
+                      onClick={() => setSelectedLevelId(nextLevel.id)}
+                      className={`w-full px-4 py-3 text-sm font-medium rounded-lg border-2 flex items-center justify-between transition-all ${
+                        nextLevelConfigured 
+                          ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100' 
+                          : 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-lg">→</span>
+                          <span>Configure Next Level: <strong>{nextLevel.name}</strong></span>
+                        </div>
+                        {nextLevelConfigured && (
+                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                      </div>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    
+                    {/* Back button for middle levels */}
+                    {!isFirstLevel && previousLevel && (
+                      <button
+                        onClick={() => setSelectedLevelId(previousLevel.id)}
+                        className="w-full px-4 py-3 text-sm font-medium bg-gray-100 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-200 hover:border-gray-400 flex items-center justify-center space-x-2 transition-all"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        <span>← Back to <strong>{previousLevel.name}</strong></span>
+                      </button>
+                    )}
+                  </div>
+                )
+              }
+              
+              return null
+            })()
+          )}
+
           {/* Component Summary */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <h4 className="font-medium text-gray-900 mb-2">Component Summary</h4>

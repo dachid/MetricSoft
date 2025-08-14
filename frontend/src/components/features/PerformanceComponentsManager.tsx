@@ -456,6 +456,29 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
 
   const currentStepData = steps[currentStep - 1]
 
+  // Check if all organizational levels have components configured
+  const areAllLevelsConfigured = () => {
+    if (orgLevels.length === 0) return false
+    
+    return orgLevels.every(level => {
+      const levelComponents = componentsByLevel[level.id]
+      // Check if level has components (either array directly or nested in components property)
+      const components = Array.isArray(levelComponents) ? levelComponents : levelComponents?.components || []
+      return components.length > 0
+    })
+  }
+
+  const isAllLevelsConfigured = areAllLevelsConfigured()
+
+  // Get the count of configured vs total levels
+  const configuredLevelsCount = orgLevels.filter(level => {
+    const levelComponents = componentsByLevel[level.id]
+    const components = Array.isArray(levelComponents) ? levelComponents : levelComponents?.components || []
+    return components.length > 0
+  }).length
+
+  const totalLevelsCount = orgLevels.length
+
   // If performance components are confirmed/locked, show read-only view
   if (isConfirmed) {
     console.log('PerformanceComponentsManager: Showing read-only view - isConfirmed:', isConfirmed)
@@ -570,22 +593,42 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
           Previous
         </Button>
         
-        {currentStep === steps.length ? (
-          <Button
-            variant="success"
-            onClick={handleSaveComponents}
-            loading={isSaving}
-          >
-            Finalize & Lock Configuration
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            onClick={nextStep}
-          >
-            Next Step
-          </Button>
-        )}
+        <div className="flex items-center space-x-4">
+          {/* Progress indicator for step 2 */}
+          {currentStep === 2 && (
+            <div className="text-sm text-gray-600">
+              <span className={`font-medium ${isAllLevelsConfigured ? 'text-green-600' : 'text-amber-600'}`}>
+                {configuredLevelsCount} of {totalLevelsCount} levels configured
+              </span>
+              {!isAllLevelsConfigured && (
+                <div className="text-xs text-amber-600 mt-1">
+                  Configure all organizational levels before proceeding
+                </div>
+              )}
+            </div>
+          )}
+          
+          {currentStep === steps.length ? (
+            <Button
+              variant="success"
+              onClick={handleSaveComponents}
+              loading={isSaving}
+            >
+              Finalize & Lock Configuration
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={nextStep}
+              disabled={currentStep === 2 && !isAllLevelsConfigured}
+            >
+              {currentStep === 2 ? 
+                (isAllLevelsConfigured ? 'Review Configuration' : `Configure All Levels (${configuredLevelsCount}/${totalLevelsCount})`) :
+                'Next Step'
+              }
+            </Button>
+          )}
+        </div>
       </div>
       
       {/* Organization Confirmation Dialog */}

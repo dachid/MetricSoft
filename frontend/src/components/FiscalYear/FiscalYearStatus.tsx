@@ -57,11 +57,27 @@ const FiscalYearStatus: React.FC<FiscalYearStatusProps> = ({ fiscalYear, classNa
   };
 
   const getOverallStatus = () => {
+    // First check for terminal/locked states
     if (fiscalYear.status === 'archived') return { status: 'archived', label: 'Archived', color: 'gray' };
     if (fiscalYear.status === 'locked') return { status: 'locked', label: 'Locked', color: 'gray' };
+    
+    // Then check for completion states based on confirmations
     if (orgConfirmed && perfConfirmed) return { status: 'complete', label: 'Complete', color: 'green' };
     if (orgConfirmed) return { status: 'partial', label: 'Partially Complete', color: 'blue' };
-    return { status: 'draft', label: 'Draft', color: 'yellow' };
+    
+    // Finally, return the actual status with proper presentation
+    const statusMap = {
+      'draft': { status: 'draft', label: 'Draft', color: 'yellow' },
+      'active': { status: 'active', label: 'Active', color: 'blue' },
+      'locked': { status: 'locked', label: 'Locked', color: 'gray' },
+      'archived': { status: 'archived', label: 'Archived', color: 'gray' }
+    };
+    
+    return statusMap[fiscalYear.status as keyof typeof statusMap] || { 
+      status: fiscalYear.status, 
+      label: fiscalYear.status.charAt(0).toUpperCase() + fiscalYear.status.slice(1), 
+      color: 'gray' 
+    };
   };
 
   const overallStatus = getOverallStatus();

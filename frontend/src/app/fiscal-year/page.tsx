@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
-import FiscalYearSelector from '@/components/FiscalYear/FiscalYearSelector';
+import FiscalYearSelector, { FiscalYearSelectorRef } from '@/components/FiscalYear/FiscalYearSelector';
 import FiscalYearCreator from '@/components/FiscalYear/FiscalYearCreator';
 import { Calendar, Building2, AlertTriangle, ArrowRight } from 'lucide-react';
 
@@ -42,6 +42,9 @@ function FiscalYearContent() {
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Create ref for FiscalYearSelector
+  const fiscalYearSelectorRef = useRef<FiscalYearSelectorRef>(null);
   
   const isSuperAdmin = user?.roles?.some(role => role.code === 'SUPER_ADMIN');
 
@@ -209,7 +212,12 @@ function FiscalYearContent() {
               <select
                 id="tenant-select"
                 value={selectedTenantId || ''}
-                onChange={(e) => setSelectedTenantId(e.target.value)}
+                onChange={(e) => {
+                  const newTenantId = e.target.value;
+                  setSelectedTenantId(newTenantId);
+                  // Clear the selected fiscal year when switching tenants to force refresh
+                  setSelectedFiscalYear(null);
+                }}
                 className="w-full px-3 py-2 border border-blue-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select an organization...</option>
@@ -303,29 +311,89 @@ function FiscalYearContent() {
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-4">Current Fiscal Year</h4>
                 <FiscalYearSelector
+                  ref={fiscalYearSelectorRef}
                   tenantId={selectedTenantId || user?.tenantId || ''}
                   selectedFiscalYear={selectedFiscalYear}
                   onFiscalYearChange={setSelectedFiscalYear}
                   onCreateNew={() => setShowFiscalYearCreator(true)}
+                  onCurrentChanged={() => {
+                    setSuccessMessage('Current fiscal year updated successfully');
+                    setTimeout(() => setSuccessMessage(''), 3000);
+                  }}
                   className="max-w-md"
                 />
               </div>
 
               {selectedFiscalYear && (
                 <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <Calendar className="w-5 h-5 text-blue-500 mt-0.5" />
-                    <div className="flex-1">
-                      <h5 className="font-medium text-blue-900">{selectedFiscalYear.name}</h5>
-                      <p className="text-sm text-blue-600 mt-1">
-                        {new Date(selectedFiscalYear.startDate).toLocaleDateString()} - {new Date(selectedFiscalYear.endDate).toLocaleDateString()}
-                      </p>
-                      <div className="mt-2 flex items-center space-x-4 text-xs text-blue-600">
-                        <span>Status: <strong className="capitalize">{selectedFiscalYear.status}</strong></span>
-                        <span>Org Levels: <strong>{selectedFiscalYear._count.levelDefinitions}</strong></span>
-                        <span>Perspectives: <strong>{selectedFiscalYear._count.perspectives}</strong></span>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <Calendar className="w-5 h-5 text-blue-500 mt-0.5" />
+                      <div className="flex-1">
+                        <h5 className="font-medium text-blue-900">{selectedFiscalYear.name}</h5>
+                        <p className="text-sm text-blue-600 mt-1">
+                          {new Date(selectedFiscalYear.startDate).toLocaleDateString()} - {new Date(selectedFiscalYear.endDate).toLocaleDateString()}
+                        </p>
+                        <div className="mt-2 flex items-center space-x-4 text-xs text-blue-600">
+                          <span>Status: <strong className="capitalize">{selectedFiscalYear.status}</strong></span>
+                          <span>Org Levels: <strong>{selectedFiscalYear._count.levelDefinitions}</strong></span>
+                          <span>Perspectives: <strong>{selectedFiscalYear._count.perspectives}</strong></span>
+                          {selectedFiscalYear.isCurrent && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                              Current FY
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    
+                    {/* Set as Current Button */}
+                    {!selectedFiscalYear.isCurrent && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('metricsoft_auth_token');
+                            const tenantIdToUse = selectedTenantId || user?.tenantId;
+                            
+                            const response = await fetch(
+                              `http://localhost:5000/api/tenants/${tenantIdToUse}/fiscal-years/${selectedFiscalYear.id}`,
+                              {
+                                method: 'PUT',
+                                headers: {
+                                  'Authorization': `Bearer ${token}`,
+                                  'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ isCurrent: true })
+                              }
+                            );
+
+                            if (response.ok) {
+                              // Refresh the fiscal year selector to get updated data
+                              if (fiscalYearSelectorRef.current) {
+                                await fiscalYearSelectorRef.current.refreshFiscalYears();
+                              }
+                              
+                              setSuccessMessage(`"${selectedFiscalYear.name}" is now set as the current fiscal year`);
+                              setTimeout(() => setSuccessMessage(''), 3000);
+                            } else {
+                              const error = await response.json();
+                              setErrorMessage(`Failed to set as current: ${error.error || 'Unknown error'}`);
+                              setTimeout(() => setErrorMessage(''), 3000);
+                            }
+                          } catch (error) {
+                            console.error('Error setting fiscal year as current:', error);
+                            setErrorMessage('Failed to set as current fiscal year');
+                            setTimeout(() => setErrorMessage(''), 3000);
+                          }
+                        }}
+                        className="inline-flex items-center px-3 py-1 border border-green-300 text-xs font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 hover:border-green-400 transition-colors"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Set as Current
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -391,18 +459,28 @@ function FiscalYearContent() {
         tenantId={selectedTenantId || user?.tenantId || ''}
         isOpen={showFiscalYearCreator}
         onClose={() => setShowFiscalYearCreator(false)}
-        onFiscalYearCreated={(newFiscalYear) => {
-          const extendedFiscalYear: FiscalYear = {
-            ...newFiscalYear,
-            status: newFiscalYear.status as 'draft' | 'active' | 'locked' | 'archived',
-            confirmations: [],
-            _count: {
-              levelDefinitions: 0,
-              perspectives: 0
-            }
-          };
-          setSelectedFiscalYear(extendedFiscalYear);
+        onFiscalYearCreated={async (newFiscalYear) => {
+          // Close the modal first
           setShowFiscalYearCreator(false);
+          
+          // Refresh the fiscal year selector to get updated list
+          if (fiscalYearSelectorRef.current) {
+            await fiscalYearSelectorRef.current.refreshFiscalYears();
+          } else {
+            // Fallback: manually set the new fiscal year if ref is not available
+            const extendedFiscalYear: FiscalYear = {
+              ...newFiscalYear,
+              status: newFiscalYear.status as 'draft' | 'active' | 'locked' | 'archived',
+              confirmations: [],
+              _count: {
+                levelDefinitions: 0,
+                perspectives: 0
+              }
+            };
+            setSelectedFiscalYear(extendedFiscalYear);
+          }
+          
+          // Show success message
           setSuccessMessage(`Fiscal Year "${newFiscalYear.name}" created successfully!`);
           setTimeout(() => setSuccessMessage(''), 3000);
         }}
