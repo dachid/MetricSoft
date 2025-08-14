@@ -17,7 +17,7 @@ class ApiClient {
     'Content-Type': 'application/json',
   };
 
-  constructor(baseURL = '/api') {
+  constructor(baseURL = 'http://localhost:5000/api') {
     this.baseURL = baseURL;
   }
 

@@ -42,7 +42,7 @@ export default function ProtectedRoute({
         // Fetch user roles if we need to check permissions/roles
         if (requiredPermissions.length > 0 || requiredRoles.length > 0) {
           const token = localStorage.getItem('metricsoft_auth_token');
-          const response = await fetch('/api/auth/me', {
+          const response = await fetch('http://localhost:5000/api/auth/me', {
             headers: {
               'Authorization': `Bearer ${token}`
             }

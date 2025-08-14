@@ -50,23 +50,66 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
         </svg>
       ),
     },
+    // Configuration Section
     {
-      name: 'Organization Settings',
-      href: '/settings',
+      name: 'Fiscal Year',
+      href: '/fiscal-year',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
-      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'], // Organization Admins and Super Admins can access settings
+      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
     },
+    {
+      name: 'Organizational Structure',
+      href: '/organizational-structure',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
+    },
+    {
+      name: 'Performance Components',
+      href: '/performance-components',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
+    },
+    {
+      name: 'Perspectives',
+      href: '/perspectives',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      ),
+      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
+    },
+    {
+      name: 'Branding',
+      href: '/branding',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+        </svg>
+      ),
+      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
+    },
+    // Admin Section
     {
       name: 'Tenant Management',
       href: '/admin/tenants',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ),
       roles: ['SUPER_ADMIN'], // Only Super Admins can create/manage tenants
@@ -103,39 +146,111 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
 
         {/* Navigation */}
         <nav className="mt-8 flex-1 px-6">
-          <div className="space-y-1">
-            {navigation
-              .filter((item) => {
-                // If item has roles requirement, check if user has any of those roles
-                if (item.roles && item.roles.length > 0) {
-                  return user?.roles?.some(userRole => item.roles?.includes(userRole.code));
-                }
-                // If no roles requirement, show to everyone
-                return true;
-              })
-              .map((item) => {
-                const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-                const isActive = currentPath === item.href;
+          <div className="space-y-6">
+            {/* Main Navigation */}
+            <div className="space-y-1">
+              {navigation
+                .filter((item) => !item.roles || item.roles.length === 0 || user?.roles?.some(userRole => item.roles?.includes(userRole.code)))
+                .filter((item) => ['Dashboard', 'Performance', 'Reports'].includes(item.name))
+                .map((item) => {
+                  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+                  const isActive = currentPath === item.href;
 
-                return (
-                  <a
-                    key={item.name}
-                    href={item.href}
-                    className={`
-                      group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-150 ease-in-out
-                      ${isActive 
-                        ? 'bg-blue-100 text-blue-900' 
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }
-                    `}
-                  >
-                    <div className={`mr-3 flex-shrink-0 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`}>
-                      {item.icon}
-                    </div>
-                    {item.name}
-                  </a>
-                );
-              })}
+                  return (
+                    <a
+                      key={item.name}
+                      href={item.href}
+                      className={`
+                        group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-150 ease-in-out
+                        ${isActive 
+                          ? 'bg-blue-100 text-blue-900' 
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }
+                      `}
+                    >
+                      <div className={`mr-3 flex-shrink-0 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`}>
+                        {item.icon}
+                      </div>
+                      {item.name}
+                    </a>
+                  );
+                })}
+            </div>
+
+            {/* Configuration Section */}
+            {user?.roles?.some(userRole => ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'].includes(userRole.code)) && (
+              <div>
+                <div className="px-2 py-1 mb-2">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Configuration</h4>
+                </div>
+                <div className="space-y-1">
+                  {navigation
+                    .filter((item) => item.roles && item.roles.some(role => ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'].includes(role)))
+                    .filter((item) => !['Tenant Management'].includes(item.name))
+                    .filter((item) => user?.roles?.some(userRole => item.roles?.includes(userRole.code)))
+                    .map((item) => {
+                      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+                      const isActive = currentPath === item.href;
+
+                      return (
+                        <a
+                          key={item.name}
+                          href={item.href}
+                          className={`
+                            group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-150 ease-in-out
+                            ${isActive 
+                              ? 'bg-blue-100 text-blue-900' 
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }
+                          `}
+                        >
+                          <div className={`mr-3 flex-shrink-0 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`}>
+                            {item.icon}
+                          </div>
+                          {item.name}
+                        </a>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Admin Section */}
+            {user?.roles?.some(userRole => userRole.code === 'SUPER_ADMIN') && (
+              <div>
+                <div className="px-2 py-1 mb-2">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Administration</h4>
+                </div>
+                <div className="space-y-1">
+                  {navigation
+                    .filter((item) => item.name === 'Tenant Management')
+                    .filter((item) => user?.roles?.some(userRole => item.roles?.includes(userRole.code)))
+                    .map((item) => {
+                      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+                      const isActive = currentPath === item.href;
+
+                      return (
+                        <a
+                          key={item.name}
+                          href={item.href}
+                          className={`
+                            group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-150 ease-in-out
+                            ${isActive 
+                              ? 'bg-blue-100 text-blue-900' 
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }
+                          `}
+                        >
+                          <div className={`mr-3 flex-shrink-0 ${isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'}`}>
+                            {item.icon}
+                          </div>
+                          {item.name}
+                        </a>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         </nav>
 

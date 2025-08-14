@@ -11,7 +11,8 @@ import {
   DraggableStateSnapshot
 } from '@hello-pangea/dnd';
 import { apiClient } from '@/lib/apiClient';
-import { useTextStyles } from '@/hooks/useTextStyles';
+import { defaultComponentClasses } from '@/hooks/useTextStyles';
+import SaveConfirmationDialog from '@/components/ui/SaveConfirmationDialog';
 
 interface LevelDefinition {
   id: string;
@@ -28,7 +29,7 @@ interface LevelDefinition {
 
 interface HierarchyConfigurationProps {
   tenantId: string;
-  fiscalYearId: string; // New prop for fiscal year scoping
+  fiscalYearId: string;
   onSuccess?: (message: string) => void;
   onError?: (message: string) => void;
 }
@@ -51,11 +52,13 @@ const DEFAULT_COLORS = [
 ];
 
 export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onError }: HierarchyConfigurationProps) {
-  const textStyles = useTextStyles();
   const [levels, setLevels] = useState<LevelDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAddCustomModal, setShowAddCustomModal] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const [customLevelData, setCustomLevelData] = useState({
     name: '',
     pluralName: '',
@@ -66,7 +69,6 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
   // Load existing level definitions
   useEffect(() => {
     if (tenantId && fiscalYearId) {
-      // Ensure authentication token is set in apiClient
       const token = localStorage.getItem('metricsoft_auth_token');
       if (token) {
         apiClient.setAuthToken(token);
@@ -79,19 +81,32 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
 
   const loadLevelDefinitions = async () => {
     try {
+      // Check if org structure is confirmed for this fiscal year
+      const confirmationResponse = await apiClient.get<{ confirmations: any[] }>(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/confirmations`);
+      
+      const orgConfirmation = confirmationResponse.success && confirmationResponse.data?.confirmations?.find(
+        (c: any) => c.confirmationType === 'org_structure'
+      );
+      
+      setIsConfirmed(!!orgConfirmation);
+
       const response = await apiClient.get<{ levelDefinitions: LevelDefinition[] }>(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`);
 
       if (response.success && response.data && response.data.levelDefinitions && Array.isArray(response.data.levelDefinitions) && response.data.levelDefinitions.length > 0) {
         const sortedLevels = response.data.levelDefinitions.sort((a: LevelDefinition, b: LevelDefinition) => a.hierarchyLevel - b.hierarchyLevel);
         setLevels(sortedLevels);
       } else {
-        // No levels exist, initialize defaults
-        await initializeDefaultLevels();
+        // No levels exist, initialize defaults only if not confirmed
+        if (!orgConfirmation) {
+          await initializeDefaultLevels();
+        }
       }
     } catch (error) {
       console.error('Error loading level definitions:', error);
-      // Fallback to default levels on any error
-      await initializeDefaultLevels();
+      // Fallback to default levels on any error, only if not confirmed
+      if (!isConfirmed) {
+        await initializeDefaultLevels();
+      }
     } finally {
       setLoading(false);
     }
@@ -105,16 +120,21 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
       pluralName: level.pluralName,
       hierarchyLevel: index,
       isStandard: true,
-      isEnabled: index === 0 || index <= 2, // Enable Organization, Division, Department by default
+      isEnabled: level.isRequired || false,
       icon: level.icon,
       color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
-      metadata: { isRequired: level.isRequired || false }
+      metadata: {}
     }));
 
     setLevels(defaultLevels);
   };
 
   const handleToggleLevel = async (levelId: string, enabled: boolean) => {
+    if (isConfirmed) {
+      onError?.('Organizational structure is confirmed and cannot be modified for this fiscal year. Select a different fiscal year to make changes.');
+      return;
+    }
+
     const level = levels.find(l => l.id === levelId || l.code === levelId);
     if (!level) return;
 
@@ -137,52 +157,24 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
       (l.id === levelId || l.code === levelId) ? { ...l, isEnabled: enabled } : l
     );
     setLevels(updatedLevels);
+    setHasUnsavedChanges(true);
 
-    // Save to backend immediately
-    try {
-      setSaving(true);
-      const payload = {
-        levelDefinitions: updatedLevels.map((level: LevelDefinition) => ({
-          id: level.id,
-          code: level.code,
-          name: level.name,
-          pluralName: level.pluralName,
-          hierarchyLevel: level.hierarchyLevel,
-          isStandard: level.isStandard,
-          isEnabled: level.isEnabled,
-          icon: level.icon,
-          color: level.color,
-          metadata: level.metadata || {}
-        }))
-      };
-      
-      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
-
-      if (response.success) {
-        const message = enabled 
-          ? (level.isStandard 
-             ? `${level.name} level enabled successfully!`
-             : `"${level.name}" custom level added to Active Organizational Levels`)
-          : (level.isStandard
-             ? `${level.name} level disabled successfully`
-             : `"${level.name}" moved back to Custom Levels section`);
-        onSuccess?.(message);
-        // Reload to ensure consistency
-        await loadLevelDefinitions();
-      } else {
-        throw new Error(response.error?.message || 'Failed to update level');
-      }
-    } catch (error) {
-      console.error('Error updating level:', error);
-      onError?.('Failed to update level. Please try again.');
-      // Revert local state on error
-      setLevels(levels);
-    } finally {
-      setSaving(false);
-    }
+    const message = enabled 
+      ? (level.isStandard 
+         ? `${level.name} level enabled - changes pending save`
+         : `"${level.name}" custom level added to Active Organizational Levels - changes pending save`)
+      : (level.isStandard
+         ? `${level.name} level disabled - changes pending save`
+         : `"${level.name}" moved back to Custom Levels section - changes pending save`);
+    onSuccess?.(message);
   };
 
   const handleDragEnd = async (result: DropResult) => {
+    if (isConfirmed) {
+      onError?.('Organizational structure is confirmed and cannot be modified for this fiscal year. Select a different fiscal year to make changes.');
+      return;
+    }
+
     if (!result.destination) return;
 
     // Only work with enabled levels for drag-and-drop
@@ -222,45 +214,17 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
 
     // Update local state immediately for responsive UI
     setLevels(allUpdatedItems);
-
-    // Save the reordered hierarchy to the backend
-    try {
-      setSaving(true);
-      
-      const payload = {
-        levelDefinitions: allUpdatedItems.map((level: LevelDefinition) => ({
-          id: level.id,
-          code: level.code,
-          name: level.name,
-          pluralName: level.pluralName,
-          hierarchyLevel: level.hierarchyLevel,
-          isStandard: level.isStandard,
-          isEnabled: level.isEnabled,
-          icon: level.icon,
-          color: level.color
-        }))
-      };
-      
-      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
-
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to save hierarchy order');
-      }
-
-      onSuccess?.('Hierarchy order updated successfully!');
-      // Reload the data to ensure UI matches the database state
-      await loadLevelDefinitions();
-    } catch (error) {
-      console.error('Error saving hierarchy order:', error);
-      onError?.('Failed to save hierarchy order. Please try again.');
-      // Revert the local state on error
-      await loadLevelDefinitions();
-    } finally {
-      setSaving(false);
-    }
+    setHasUnsavedChanges(true);
+    
+    onSuccess?.('Hierarchy order updated - changes pending save');
   };
 
   const handleAddCustomLevel = async () => {
+    if (isConfirmed) {
+      onError?.('Organizational structure is confirmed and cannot be modified for this fiscal year. Select a different fiscal year to make changes.');
+      return;
+    }
+
     if (!customLevelData.name.trim() || !customLevelData.pluralName.trim()) {
       onError?.('Please fill in both singular and plural names');
       return;
@@ -292,50 +256,17 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
     // Add to local state
     const updatedLevels = [...levels, newLevel as LevelDefinition];
     setLevels(updatedLevels);
+    setHasUnsavedChanges(true);
     
-    // Save to backend immediately
-    try {
-      setSaving(true);
-      const payload = {
-        levelDefinitions: updatedLevels.map((level: LevelDefinition) => ({
-          id: level.id,
-          code: level.code,
-          name: level.name,
-          pluralName: level.pluralName,
-          hierarchyLevel: level.hierarchyLevel,
-          isStandard: level.isStandard,
-          isEnabled: level.isEnabled,
-          icon: level.icon,
-          color: level.color,
-          metadata: level.metadata || {}
-        }))
-      };
-      
-      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
-
-      if (response.success) {
-        setShowAddCustomModal(false);
-        setCustomLevelData({
-          name: '',
-          pluralName: '',
-          icon: '📋',
-          color: DEFAULT_COLORS[0]
-        });
-        
-        onSuccess?.(`Custom level "${customLevelData.name}" created and saved successfully! You can now enable it from the Custom Levels section.`);
-        // Reload to get any server-generated IDs
-        await loadLevelDefinitions();
-      } else {
-        throw new Error(response.error?.message || 'Failed to save custom level');
-      }
-    } catch (error) {
-      console.error('Error saving custom level:', error);
-      onError?.('Failed to save custom level. Please try again.');
-      // Revert local state on error
-      setLevels(levels);
-    } finally {
-      setSaving(false);
-    }
+    setShowAddCustomModal(false);
+    setCustomLevelData({
+      name: '',
+      pluralName: '',
+      icon: '📋',
+      color: DEFAULT_COLORS[0]
+    });
+    
+    onSuccess?.(`Custom level "${customLevelData.name}" created - changes pending save. You can now enable it from the Custom Levels section.`);
   };
 
   const handleRemoveCustomLevel = (levelId: string) => {
@@ -350,16 +281,29 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
   };
 
   const handleDeleteCustomLevel = (levelId: string) => {
+    if (isConfirmed) {
+      onError?.('Organizational structure is confirmed and cannot be modified for this fiscal year. Select a different fiscal year to make changes.');
+      return;
+    }
+
     const level = levels.find(l => l.id === levelId);
     if (!level || level.isStandard) return;
 
     if (window.confirm(`Are you sure you want to permanently delete the "${level.name}" level? This action cannot be undone.`)) {
       setLevels(prev => prev.filter(l => l.id !== levelId));
-      onSuccess?.(`Custom level "${level.name}" deleted successfully`);
+      setHasUnsavedChanges(true);
+      onSuccess?.(`Custom level "${level.name}" deleted - changes pending save`);
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+    setShowSaveDialog(true);
+  };
+
+  const handleConfirmedSave = async () => {
     setSaving(true);
     try {
       const payload = {
@@ -380,8 +324,24 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
       const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, payload);
 
       if (response.success) {
-        onSuccess?.('Hierarchy configuration saved successfully!');
-        await loadLevelDefinitions(); // Reload to get any server-generated IDs
+        // Create confirmation to lock the organizational structure
+        const confirmationResponse = await apiClient.post(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/confirmations`, {
+          confirmationType: 'org_structure',
+          metadata: {
+            confirmedLevels: levels.length,
+            enabledLevels: levels.filter(l => l.isEnabled).length
+          }
+        });
+
+        if (confirmationResponse.success) {
+          setHasUnsavedChanges(false);
+          setIsConfirmed(true);
+          onSuccess?.('Organizational structure saved and confirmed successfully! This structure is now locked for this fiscal year.');
+          await loadLevelDefinitions(); // Reload to get any server-generated IDs
+        } else {
+          // Structure saved but confirmation failed
+          onSuccess?.('Hierarchy configuration saved successfully, but confirmation failed. Please try again to lock the structure.');
+        }
       } else {
         onError?.(response.error?.message || 'Failed to save hierarchy configuration');
       }
@@ -390,6 +350,7 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
       onError?.('Failed to save hierarchy configuration');
     } finally {
       setSaving(false);
+      setShowSaveDialog(false);
     }
   };
 
@@ -406,133 +367,142 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
 
   if (!tenantId) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-        <div className="text-gray-400 text-6xl mb-4">🏢</div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Organization Selected</h3>
-        <p className="text-gray-600">
-          Please select an organization to configure its hierarchy levels.
-        </p>
+      <div className="text-center py-8">
+        <div className="text-4xl mb-4">🏢</div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Tenant Selected</h3>
+        <p className="text-gray-600">Please select a tenant to configure organizational hierarchy.</p>
+      </div>
+    );
+  }
+
+  if (!fiscalYearId) {
+    return (
+      <div className="text-center py-8">
+        <div className="text-4xl mb-4">📅</div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Fiscal Year Selected</h3>
+        <p className="text-gray-600">Please select a fiscal year to configure organizational hierarchy.</p>
       </div>
     );
   }
 
   const enabledLevels = levels.filter(l => l.isEnabled);
-  const disabledLevels = levels.filter(l => !l.isEnabled);
+  const standardLevels = levels.filter(l => l.isStandard);
+  const customLevels = levels.filter(l => !l.isStandard);
 
   return (
-    <div className="space-y-6">
-      {/* Debug info - remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm">
-          <strong>Debug Info:</strong> TenantId: {tenantId} | Levels count: {levels.length} | 
-          Enabled: {levels.filter(l => l.isEnabled).length} | 
-          Disabled: {levels.filter(l => !l.isEnabled).length}
-        </div>
-      )}
-
-      {/* Header */}
+    <div className="space-y-8">
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className={textStyles.combine('heading', 'text-lg font-medium')}>
-            Organizational Level Configuration
-          </h3>
-          {saving && (
-            <div className={textStyles.combine('info', 'flex items-center text-sm')}>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-              Saving changes...
-            </div>
-          )}
-        </div>
-        <p className={textStyles.combine('muted', 'text-sm mb-6')}>
+        <h2 className={`${defaultComponentClasses.heading2} mb-2`}>Organizational Hierarchy Configuration</h2>
+        <p className="text-gray-600">
           Configure which organizational levels are active and create custom levels as needed. 
           Drag and drop to reorder levels in your hierarchy.
         </p>
       </div>
 
-      {/* Active Levels */}
-      <div className="bg-white border rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-lg font-medium text-gray-900">
-            Active Organizational Levels
-          </h4>
-          <span className="text-sm text-gray-500">
-            {enabledLevels.length} level{enabledLevels.length !== 1 ? 's' : ''} active
-          </span>
+      {/* Unsaved Changes Indicator */}
+      {hasUnsavedChanges && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <span className="inline-block w-3 h-3 bg-orange-400 rounded-full mr-3 animate-pulse"></span>
+            </div>
+            <div>
+              <p className="text-orange-800 font-medium">Unsaved Changes</p>
+              <p className="text-orange-700 text-sm">
+                You have made changes to the organizational structure. Click "Save Pending Changes" to confirm and save your modifications.
+              </p>
+            </div>
+          </div>
         </div>
+      )}
 
+      {/* Confirmed Structure Indicator */}
+      {isConfirmed && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <span className="inline-block w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                <span className="text-blue-600 text-sm">🔒</span>
+              </span>
+            </div>
+            <div>
+              <p className="text-blue-800 font-medium">Organizational Structure Confirmed</p>
+              <p className="text-blue-700 text-sm">
+                This organizational structure has been confirmed and locked for this fiscal year. To make changes, please select a different fiscal year that hasn't been confirmed yet.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Organizational Levels */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Active Organizational Levels</h3>
+        
         <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="active-levels">
+          <Droppable droppableId="enabled-levels" isDropDisabled={isConfirmed}>
             {(provided: DroppableProvided) => (
-              <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+              <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-3">
                 {enabledLevels.map((level, index) => (
                   <Draggable 
                     key={level.id || level.code} 
                     draggableId={level.id || level.code} 
                     index={index}
-                    isDragDisabled={level.code === 'ORGANIZATION'}
+                    isDragDisabled={isConfirmed || level.code === 'ORGANIZATION'}
                   >
                     {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.draggableProps}
-                        className={`flex items-center justify-between p-4 border rounded-lg bg-white transition-all duration-200 ${
-                          snapshot.isDragging 
-                            ? 'shadow-xl border-blue-300 bg-blue-50 transform rotate-1 scale-105' 
-                            : 'hover:shadow-md hover:border-gray-300'
-                        } ${level.code === 'ORGANIZATION' ? 'bg-blue-50 border-blue-200' : ''}`}
+                        className={`bg-green-50 border border-green-200 rounded-lg p-4 ${
+                          snapshot.isDragging ? 'shadow-lg' : ''
+                        } ${isConfirmed ? 'opacity-75' : ''}`}
                       >
-                        <div className="flex items-center space-x-3">
-                          <div
-                            {...provided.dragHandleProps}
-                            className={`cursor-move text-gray-400 hover:text-gray-600 ${
-                              level.code === 'ORGANIZATION' ? 'cursor-not-allowed opacity-50' : ''
-                            }`}
-                          >
-                            ⋮⋮
-                          </div>
-                          <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
-                            style={{ backgroundColor: level.color }}
-                          >
-                            {level.icon || level.hierarchyLevel + 1}
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">{level.name}</span>
-                              {level.code === 'ORGANIZATION' && (
-                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Required</span>
-                              )}
-                              {!level.isStandard && (
-                                <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Custom</span>
-                              )}
-                            </div>
-                            <span className="text-sm text-gray-600">{level.pluralName}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                            Level {level.hierarchyLevel + 1}
-                          </span>
-                          <button
-                            onClick={() => handleToggleLevel(level.id || level.code, false)}
-                            disabled={level.code === 'ORGANIZATION'}
-                            className={`text-red-600 hover:text-red-800 text-sm ${
-                              level.code === 'ORGANIZATION' ? 'cursor-not-allowed opacity-50' : ''
-                            }`}
-                            title={level.code === 'ORGANIZATION' ? 'Organization level is required' : 'Disable this level'}
-                          >
-                            Disable
-                          </button>
-                          {!level.isStandard && (
-                            <button
-                              onClick={() => handleRemoveCustomLevel(level.id)}
-                              className="text-red-600 hover:text-red-800 text-sm ml-2"
-                              title="Remove custom level"
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div 
+                              {...provided.dragHandleProps} 
+                              className={`cursor-move ${isConfirmed ? 'cursor-not-allowed' : ''}`}
                             >
-                              Remove
-                            </button>
-                          )}
+                              <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                              </svg>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <span className="text-2xl">{level.icon}</span>
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  Level {index + 1}: {level.name}
+                                  {level.code === 'ORGANIZATION' && (
+                                    <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Required</span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {level.pluralName} • {level.isStandard ? 'Standard' : 'Custom'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div 
+                              className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                              style={{ backgroundColor: level.color }}
+                            ></div>
+                            {level.code !== 'ORGANIZATION' && (
+                              <button
+                                onClick={() => handleToggleLevel(level.id || level.code, false)}
+                                className={`text-red-600 hover:text-red-800 transition-colors ${
+                                  isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                                title="Remove from active levels"
+                                disabled={isConfirmed}
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -546,100 +516,59 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
 
         {enabledLevels.length === 0 && (
           <div className="text-center py-8 text-gray-500">
-            <p>No active levels configured</p>
+            <div className="text-4xl mb-2">🏢</div>
+            <p className="text-sm">No organizational levels are currently active</p>
+            <p className="text-xs mt-1">Enable levels below to build your hierarchy</p>
           </div>
         )}
       </div>
 
-      {/* Disabled Standard Levels */}
-      {disabledLevels.filter(l => l.isStandard).length > 0 && (
-        <div className="bg-gray-50 border rounded-lg p-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">
-            Available Standard Levels
-          </h4>
-          <div className="space-y-3">
-            {disabledLevels.filter(l => l.isStandard).map((level) => (
-              <div key={level.id || level.code} className="flex items-center justify-between p-3 bg-white border rounded-lg">
+      {/* Available Standard Levels */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Available Standard Levels</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {standardLevels.filter(l => !l.isEnabled).map((level) => (
+            <div key={level.id || level.code} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs"
-                    style={{ backgroundColor: level.color }}
-                  >
-                    {level.icon || '•'}
-                  </div>
+                  <span className="text-2xl">{level.icon}</span>
                   <div>
-                    <span className="font-medium text-gray-600">{level.name}</span>
-                    <span className="text-sm text-gray-500 ml-2">({level.pluralName})</span>
+                    <div className="font-medium text-gray-900">{level.name}</div>
+                    <div className="text-sm text-gray-500">{level.pluralName}</div>
                   </div>
                 </div>
                 <button
                   onClick={() => handleToggleLevel(level.id || level.code, true)}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
+                  className={`px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${
+                    isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  disabled={isConfirmed}
                 >
                   Enable
                 </button>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-      )}
 
-      {/* Available Custom Levels */}
-      {disabledLevels.filter(l => !l.isStandard).length > 0 && (
-        <div className="bg-gray-50 border rounded-lg p-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">
-            Custom Levels
-          </h4>
-          <div className="space-y-3">
-            {disabledLevels.filter(l => !l.isStandard).map((level) => (
-              <div key={level.id || level.code} className="flex items-center justify-between p-3 bg-white border rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs"
-                    style={{ backgroundColor: level.color }}
-                  >
-                    {level.icon || '•'}
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">{level.name}</span>
-                    <span className="text-sm text-gray-500 ml-2">({level.pluralName})</span>
-                    <span className="inline-block ml-2 px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">
-                      Custom
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => handleToggleLevel(level.id || level.code, true)}
-                    className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1 border border-blue-200 rounded-md hover:bg-blue-50"
-                  >
-                    Enable
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCustomLevel(level.id || level.code)}
-                    className="text-red-600 hover:text-red-800 text-sm px-3 py-1 border border-red-200 rounded-md hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+        {standardLevels.filter(l => !l.isEnabled).length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <div className="text-4xl mb-2">✅</div>
+            <p className="text-sm">All standard levels are currently enabled</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Add Custom Level */}
-      <div className="bg-white border rounded-lg p-6">
+      {/* Custom Levels */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h4 className="text-lg font-medium text-gray-900">Create Custom Level</h4>
-            <p className="text-sm text-gray-600 mt-1">
-              Create new organizational levels. They'll appear in Custom Levels section below where you can enable them.
-            </p>
-          </div>
+          <h3 className="text-lg font-medium text-gray-900">Custom Levels</h3>
           <button
             onClick={() => setShowAddCustomModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className={`flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ${
+              isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            disabled={isConfirmed}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -648,7 +577,64 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
           </button>
         </div>
 
-        {levels.filter(l => !l.isStandard).length === 0 && (
+        <div className="space-y-3">
+          {customLevels.map((level) => (
+            <div key={level.id} className={`border rounded-lg p-4 ${
+              level.isEnabled ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <span className="text-2xl">{level.icon}</span>
+                  <div>
+                    <div className="font-medium text-gray-900">{level.name}</div>
+                    <div className="text-sm text-gray-500">{level.pluralName}</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div 
+                    className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: level.color }}
+                  ></div>
+                  {level.isEnabled ? (
+                    <button
+                      onClick={() => handleToggleLevel(level.id, false)}
+                      className={`px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors ${
+                        isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      disabled={isConfirmed}
+                    >
+                      Disable
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleToggleLevel(level.id, true)}
+                      className={`px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${
+                        isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      disabled={isConfirmed}
+                    >
+                      Enable
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDeleteCustomLevel(level.id)}
+                    className={`text-red-600 hover:text-red-800 transition-colors ${
+                      isConfirmed ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    title="Delete custom level"
+                    disabled={isConfirmed}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {customLevels.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             <div className="text-4xl mb-2">📋</div>
             <p className="text-sm">No custom levels created yet</p>
@@ -681,85 +667,78 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
       </div>
 
       {/* Save Button */}
-      <div className="flex justify-end space-x-3">
-        <button
-          onClick={() => loadLevelDefinitions()}
-          className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-          disabled={saving}
-        >
-          Reset Changes
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? (
-            <>
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Saving...
-            </>
-          ) : (
-            'Save Configuration'
-          )}
-        </button>
-      </div>
+      {!isConfirmed && (
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={() => {
+              loadLevelDefinitions();
+              setHasUnsavedChanges(false);
+            }}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+            disabled={saving}
+          >
+            Reset Changes
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !hasUnsavedChanges}
+            className={`px-6 py-2 text-white rounded-md transition-colors ${
+              hasUnsavedChanges 
+                ? 'bg-orange-600 hover:bg-orange-700' 
+                : 'bg-green-600 hover:bg-green-700'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {saving ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving...
+              </>
+            ) : hasUnsavedChanges ? (
+              <>
+                <span className="inline-block w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></span>
+                Save Pending Changes
+              </>
+            ) : (
+              'Configuration Saved'
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Add Custom Level Modal */}
-      {showAddCustomModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Add Custom Level</h3>
-              <button
-                onClick={() => setShowAddCustomModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
+      {showAddCustomModal && !isConfirmed && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Add Custom Level</h3>
+            
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Singular Name *
+                  Singular Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={customLevelData.name}
-                  onChange={(e) => {
-                    const name = e.target.value;
-                    setCustomLevelData(prev => ({ 
-                      ...prev, 
-                      name,
-                      // Auto-suggest plural name if it's empty or was auto-generated
-                      pluralName: prev.pluralName === '' || prev.pluralName === `${prev.name}s` 
-                        ? `${name}s` 
-                        : prev.pluralName
-                    }));
-                  }}
-                  placeholder="e.g., Region, Business Unit"
+                  onChange={(e) => setCustomLevelData(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Region"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Plural Name *
+                  Plural Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={customLevelData.pluralName}
                   onChange={(e) => setCustomLevelData(prev => ({ ...prev, pluralName: e.target.value }))}
-                  placeholder="e.g., Regions, Business Units"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Regions"
                 />
-                <p className="text-xs text-gray-500 mt-1">Auto-suggested based on singular name</p>
               </div>
 
               <div>
@@ -837,6 +816,29 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
           </div>
         </div>
       )}
+
+      {/* Read-Only Status */}
+      {isConfirmed && (
+        <div className="text-center py-6">
+          <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-full">
+            <span className="mr-2">🔒</span>
+            <span className="font-medium">Structure Confirmed & Locked</span>
+          </div>
+          <p className="text-blue-600 text-sm mt-2">
+            Select a different fiscal year to make changes to organizational structure.
+          </p>
+        </div>
+      )}
+
+      {/* Save Confirmation Dialog */}
+      <SaveConfirmationDialog
+        isOpen={showSaveDialog}
+        onConfirm={handleConfirmedSave}
+        onClose={() => setShowSaveDialog(false)}
+        title="Save Organizational Structure"
+        message="You are about to save changes to the organizational hierarchy. This will affect how data is organized and may impact existing organizational units. Please confirm by solving the math problem below."
+        isLoading={saving}
+      />
     </div>
   );
 }

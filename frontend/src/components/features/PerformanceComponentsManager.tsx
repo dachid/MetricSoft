@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../lib/auth-context'
 import { Button, Card, ConfirmationDialog } from '../ui'
+import SaveConfirmationDialog from '../ui/SaveConfirmationDialog'
 import { TerminologyEditor } from './TerminologyEditor'
 import { ComponentBuilder } from './ComponentBuilder'
 import { CascadeVisualizer } from './CascadeVisualizer'
@@ -13,6 +14,7 @@ import { ReadOnlyPerformanceComponents } from './ReadOnlyPerformanceComponents'
 
 interface PerformanceComponentsManagerProps {
   fiscalYearId: string
+  tenantId: string
   onComplete?: () => void
 }
 
@@ -39,7 +41,7 @@ interface Perspective {
   isActive: boolean
 }
 
-export function PerformanceComponentsManager({ fiscalYearId, onComplete }: PerformanceComponentsManagerProps) {
+export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplete }: PerformanceComponentsManagerProps) {
   const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
@@ -72,18 +74,34 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
 
   // Load organizational levels for this fiscal year
   useEffect(() => {
-    if (fiscalYearId && user?.tenantId) {
+    console.log('PerformanceComponentsManager: useEffect triggered')
+    console.log('PerformanceComponentsManager: fiscalYearId:', fiscalYearId)
+    console.log('PerformanceComponentsManager: tenantId:', tenantId)
+    
+    if (fiscalYearId && tenantId) {
+      console.log('PerformanceComponentsManager: Starting data loading...')
+      
+      // Reset all state when fiscal year changes
+      setIsConfirmed(false)
+      setConfirmationInfo(null)
+      setComponentsByLevel({})
+      setCascadeRelationships([])
+      setCurrentStep(1)
+      setIsOrgConfirmed(false)
+      
       loadOrgLevels()
       loadPerformanceComponents()
       loadTenantSettings()
+      checkOrgStructureConfirmation()
+    } else {
+      console.log('PerformanceComponentsManager: Missing required data, not loading')
     }
-  }, [fiscalYearId, user?.tenantId])
+  }, [fiscalYearId, tenantId])
 
-  const loadOrgLevels = async () => {
+  const checkOrgStructureConfirmation = async () => {
     try {
-      setIsLoading(true)
       const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/level-definitions`, {
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -91,31 +109,99 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
       })
 
       if (response.ok) {
+        const fiscalYears = await response.json()
+        const currentFY = fiscalYears.find((fy: any) => fy.id === fiscalYearId)
+        
+        if (currentFY) {
+          const hasOrgConfirmation = currentFY.confirmations?.some((c: any) => c.confirmationType === 'org_structure')
+          console.log('PerformanceComponentsManager: Organization structure confirmed:', hasOrgConfirmation)
+          setIsOrgConfirmed(hasOrgConfirmation || false)
+        }
+      }
+    } catch (error) {
+      console.error('PerformanceComponentsManager: Error checking org structure confirmation:', error)
+    }
+  }
+
+  const loadOrgLevels = async () => {
+    try {
+      setIsLoading(true)
+      const token = localStorage.getItem('metricsoft_auth_token')
+      const url = `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`
+      console.log('PerformanceComponentsManager: Fetching org levels from:', url)
+      console.log('TenantId:', tenantId)
+      console.log('FiscalYearId:', fiscalYearId)
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('PerformanceComponentsManager: Response status:', response.status)
+      
+      if (response.ok) {
         const data = await response.json()
         // The API returns { levelDefinitions: [...] }
-        console.log('Raw API response:', data)
-        console.log('levelDefinitions array:', data.levelDefinitions)
+        console.log('PerformanceComponentsManager: Raw API response:', data)
+        console.log('PerformanceComponentsManager: levelDefinitions array:', data.levelDefinitions)
         
         // Filter to only enabled levels and sort by hierarchy
         const enabledLevels = (data.levelDefinitions || [])
           .filter((level: any) => level.isEnabled)
           .sort((a: any, b: any) => a.hierarchyLevel - b.hierarchyLevel)
         
-        console.log('Filtered enabled levels:', enabledLevels)
+        console.log('PerformanceComponentsManager: Filtered enabled levels:', enabledLevels)
         setOrgLevels(enabledLevels)
-        console.log('Loaded enabled organizational levels:', enabledLevels)
+        console.log('PerformanceComponentsManager: Loaded enabled organizational levels:', enabledLevels)
+      } else {
+        const errorText = await response.text()
+        console.error('PerformanceComponentsManager: API error:', response.status, errorText)
+        console.error('PerformanceComponentsManager: Failed URL:', url)
+        
+        // If fiscal year specific endpoint fails, try the tenant-wide endpoint as fallback
+        if (response.status === 404) {
+          console.log('PerformanceComponentsManager: Trying tenant-wide level definitions as fallback...')
+          const fallbackUrl = `http://localhost:5000/api/tenants/${tenantId}/level-definitions`
+          const fallbackResponse = await fetch(fallbackUrl, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json()
+            console.log('PerformanceComponentsManager: Fallback API response:', fallbackData)
+            
+            const enabledLevels = (fallbackData.levelDefinitions || [])
+              .filter((level: any) => level.isEnabled)
+              .sort((a: any, b: any) => a.hierarchyLevel - b.hierarchyLevel)
+            
+            console.log('PerformanceComponentsManager: Fallback enabled levels:', enabledLevels)
+            setOrgLevels(enabledLevels)
+          } else {
+            console.error('PerformanceComponentsManager: Fallback also failed:', fallbackResponse.status)
+          }
+        }
       }
     } catch (error) {
-      console.error('Error loading org levels:', error)
+      console.error('PerformanceComponentsManager: Error loading org levels:', error)
     } finally {
+      console.log('PerformanceComponentsManager: Setting isLoading to false')
       setIsLoading(false)
     }
   }
 
   const loadPerformanceComponents = async () => {
     try {
+      // Reset confirmation state first
+      setIsConfirmed(false)
+      setConfirmationInfo(null)
+      
       const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -145,6 +231,9 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
         }
       } else if (response.status === 404) {
         console.log('No existing performance components found - will initialize defaults')
+        // Reset components state for new fiscal year
+        setComponentsByLevel({})
+        setCascadeRelationships([])
       }
     } catch (error) {
       console.error('Error loading performance components:', error)
@@ -154,7 +243,7 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
   const loadTenantSettings = async () => {
     try {
       const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${user?.tenantId}/settings`, {
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/settings`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -211,7 +300,7 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
     try {
       setIsConfirming(true)
       const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/organization/confirm`, {
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/organization/confirm`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -265,7 +354,7 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
       
       // Save terminology to tenant settings first
       try {
-        const settingsResponse = await fetch(`http://localhost:5000/api/tenants/${user?.tenantId}/settings`, {
+        const settingsResponse = await fetch(`http://localhost:5000/api/tenants/${tenantId}/settings`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -287,8 +376,8 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
       }
       
       // Save performance components
-      console.log('Sending PUT request to:', `http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/performance-components`)
-      const response = await fetch(`http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
+      console.log('Sending PUT request to:', `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`)
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -327,7 +416,7 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
   const handleConfirmConfiguration = async () => {
     try {
       const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
+      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -369,21 +458,29 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
 
   // If performance components are confirmed/locked, show read-only view
   if (isConfirmed) {
+    console.log('PerformanceComponentsManager: Showing read-only view - isConfirmed:', isConfirmed)
     return (
       <ReadOnlyPerformanceComponents 
         fiscalYearId={fiscalYearId}
+        tenantId={tenantId}
         confirmationInfo={confirmationInfo}
       />
     )
   }
 
   if (isLoading) {
+    console.log('PerformanceComponentsManager: Showing loading state - isLoading:', isLoading)
+    console.log('PerformanceComponentsManager: orgLevels length:', orgLevels.length)
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     )
   }
+
+  console.log('PerformanceComponentsManager: Rendering main component')
+  console.log('PerformanceComponentsManager: orgLevels:', orgLevels)
+  console.log('PerformanceComponentsManager: currentStep:', currentStep)
 
   return (
     <div className="space-y-6">
@@ -502,28 +599,27 @@ export function PerformanceComponentsManager({ fiscalYearId, onComplete }: Perfo
 Once confirmed, you cannot modify the organizational levels for this fiscal year.
 
 Do you want to proceed with confirming the organization structure?`}
-        confirmText="Confirm Organization"
+        confirmText="Confirm Organization Structure"
         isLoading={isConfirming}
       />
       
       {/* Performance Components Confirmation Dialog */}
-      <ConfirmationDialog
+      <SaveConfirmationDialog
         isOpen={showPerfConfirmDialog}
         onClose={() => setShowPerfConfirmDialog(false)}
         onConfirm={handleSaveAndConfirmComponents}
-        title="Finalize Performance Components"
+        title="Finalize Performance Components Configuration"
         message={`This will save and lock your performance components configuration for this fiscal year.
 
 Once confirmed:
-• Components cannot be modified
-• Terminology will be locked
+• Performance components cannot be modified
+• Component terminology will be locked
 • Cascade relationships will be finalized
 • KPI creation and management will be enabled
 
 If you need to make changes later, contact MetricSoft support.
 
-Do you want to proceed?`}
-        confirmText="Finalize Configuration"
+Please solve the math challenge below to confirm this action.`}
         isLoading={isSaving}
       />
     </div>

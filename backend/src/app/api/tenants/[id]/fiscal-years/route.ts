@@ -20,8 +20,9 @@ export async function GET(
 
     const { id: tenantId } = params;
 
-    // Verify tenant access
-    if (authResult.user.tenantId !== tenantId) {
+    // Verify tenant access - Super Admins can access any tenant
+    const isSuperAdmin = authResult.user.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
+    if (!isSuperAdmin && authResult.user.tenantId !== tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
     const fiscalYears = await prisma.fiscalYear.findMany({
@@ -67,8 +68,9 @@ export async function POST(
     const { id: tenantId } = params;
     const body = await request.json();
 
-    // Verify tenant access
-    if (authResult.user.tenantId !== tenantId) {
+    // Verify tenant access - Super Admins can access any tenant
+    const isSuperAdmin = authResult.user.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
+    if (!isSuperAdmin && authResult.user.tenantId !== tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

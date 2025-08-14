@@ -20,8 +20,9 @@ export async function GET(
 
     const { id: tenantId, fyId: fiscalYearId } = params;
 
-    // Verify tenant access
-    if (authResult.user.tenantId !== tenantId) {
+    // Verify tenant access - Super Admins can access any tenant
+    const isSuperAdmin = authResult.user.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
+    if (!isSuperAdmin && authResult.user.tenantId !== tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -143,8 +144,9 @@ export async function PUT(
     const { id: tenantId, fyId: fiscalYearId } = params;
     const body = await request.json();
 
-    // Verify tenant access
-    if (authResult.user.tenantId !== tenantId) {
+    // Verify tenant access - Super Admins can access any tenant
+    const isSuperAdmin = authResult.user.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
+    if (!isSuperAdmin && authResult.user.tenantId !== tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -301,8 +303,9 @@ export async function POST(
 
     const { id: tenantId, fyId: fiscalYearId } = params;
 
-    // Verify tenant access
-    if (authResult.user.tenantId !== tenantId) {
+    // Verify tenant access - Super Admins can access any tenant
+    const isSuperAdmin = authResult.user.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
+    if (!isSuperAdmin && authResult.user.tenantId !== tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

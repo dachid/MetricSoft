@@ -10,6 +10,7 @@ import { CascadeVisualizer } from './CascadeVisualizer'
 
 interface ReadOnlyPerformanceComponentsProps {
   fiscalYearId: string
+  tenantId: string
   confirmationInfo?: {
     confirmedAt: string
     canModify: boolean
@@ -31,6 +32,7 @@ interface OrgLevel {
 
 export function ReadOnlyPerformanceComponents({ 
   fiscalYearId, 
+  tenantId,
   confirmationInfo 
 }: ReadOnlyPerformanceComponentsProps) {
   const { user } = useAuth()
@@ -47,10 +49,10 @@ export function ReadOnlyPerformanceComponents({
   const [cascadeRelationships, setCascadeRelationships] = useState<any[]>([])
 
   useEffect(() => {
-    if (fiscalYearId && user?.tenantId) {
+    if (fiscalYearId && tenantId) {
       loadData()
     }
-  }, [fiscalYearId, user?.tenantId])
+  }, [fiscalYearId, tenantId])
 
   const loadData = async () => {
     try {
@@ -59,7 +61,7 @@ export function ReadOnlyPerformanceComponents({
       
       // Load organizational levels
       const orgLevelsResponse = await fetch(
-        `http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/level-definitions`,
+        `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -78,7 +80,7 @@ export function ReadOnlyPerformanceComponents({
 
       // Load performance components
       const componentsResponse = await fetch(
-        `http://localhost:5000/api/tenants/${user?.tenantId}/fiscal-years/${fiscalYearId}/performance-components`,
+        `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -103,7 +105,7 @@ export function ReadOnlyPerformanceComponents({
 
       // Load tenant settings for terminology
       const settingsResponse = await fetch(
-        `http://localhost:5000/api/tenants/${user?.tenantId}/settings`,
+        `http://localhost:5000/api/tenants/${tenantId}/settings`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

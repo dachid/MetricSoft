@@ -1,13 +1,13 @@
 /**
- * Fiscal Year Level Definitions API - GET/PUT /api/tenants/[id]/fiscal-years/[fyId]/level-definitions
- * Manages organizational structure for a specific fiscal year
+ * Fiscal Year Confirmations API - GET/POST /api/tenants/[id]/fiscal-years/[fyId]/confirmations
+ * Manages confirmations for fiscal year configurations
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../../../../lib/prisma';
 import { authMiddleware } from '../../../../../../../lib/middleware/auth';
 
-// GET /api/tenants/{id}/fiscal-years/{fyId}/level-definitions
+// GET /api/tenants/{id}/fiscal-years/{fyId}/confirmations
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string; fyId: string } }
@@ -35,16 +35,16 @@ export async function GET(
       return NextResponse.json({ error: 'Fiscal year not found' }, { status: 404 });
     }
 
-    // Get level definitions for this fiscal year
-    const levelDefinitions = await prisma.fiscalYearLevelDefinition.findMany({
+    // Get confirmations for this fiscal year
+    const confirmations = await prisma.fiscalYearConfirmation.findMany({
       where: { fiscalYearId },
-      orderBy: { hierarchyLevel: 'asc' }
+      orderBy: { confirmedAt: 'desc' }
     });
 
-    return NextResponse.json({ levelDefinitions });
+    return NextResponse.json({ confirmations });
 
   } catch (error) {
-    console.error('Error fetching fiscal year level definitions:', error);
+    console.error('Error fetching fiscal year confirmations:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -52,8 +52,8 @@ export async function GET(
   }
 }
 
-// PUT /api/tenants/{id}/fiscal-years/{fyId}/level-definitions
-export async function PUT(
+// POST /api/tenants/{id}/fiscal-years/{fyId}/confirmations
+export async function POST(
   request: NextRequest,
   { params }: { params: { id: string; fyId: string } }
 ) {
@@ -72,69 +72,61 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Check if org structure is already confirmed
-    const confirmation = await prisma.fiscalYearConfirmation.findUnique({
-      where: {
-        fiscalYearId_confirmationType: {
-          fiscalYearId,
-          confirmationType: 'org_structure'
-        }
-      }
-    });
+    const { confirmationType, metadata } = body;
 
-    if (confirmation && !confirmation.canModify) {
+    // Validate required fields
+    if (!confirmationType) {
       return NextResponse.json(
-        { error: 'Organizational structure is confirmed and cannot be modified' },
-        { status: 403 }
-      );
-    }
-
-    const { levelDefinitions } = body;
-
-    // Validate levelDefinitions
-    if (!Array.isArray(levelDefinitions)) {
-      return NextResponse.json(
-        { error: 'levelDefinitions must be an array' },
+        { error: 'confirmationType is required' },
         { status: 400 }
       );
     }
 
-    // Use transaction to update all level definitions
-    const updatedLevelDefinitions = await prisma.$transaction(async (tx) => {
-      // Delete existing level definitions for this fiscal year
-      await tx.fiscalYearLevelDefinition.deleteMany({
-        where: { fiscalYearId }
-      });
+    // Verify fiscal year belongs to tenant
+    const fiscalYear = await prisma.fiscalYear.findFirst({
+      where: { id: fiscalYearId, tenantId }
+    });
 
-      // Create new level definitions
-      const created = [];
-      for (const levelDef of levelDefinitions) {
-        const newLevelDef = await tx.fiscalYearLevelDefinition.create({
-          data: {
-            fiscalYearId,
-            code: levelDef.code,
-            name: levelDef.name,
-            pluralName: levelDef.pluralName,
-            hierarchyLevel: levelDef.hierarchyLevel,
-            isStandard: levelDef.isStandard || false,
-            isEnabled: levelDef.isEnabled !== false,
-            icon: levelDef.icon,
-            color: levelDef.color || '#6B7280',
-            metadata: levelDef.metadata || {}
-          }
-        });
-        created.push(newLevelDef);
+    if (!fiscalYear) {
+      return NextResponse.json({ error: 'Fiscal year not found' }, { status: 404 });
+    }
+
+    // Check if confirmation already exists
+    const existingConfirmation = await prisma.fiscalYearConfirmation.findUnique({
+      where: {
+        fiscalYearId_confirmationType: {
+          fiscalYearId,
+          confirmationType
+        }
       }
-      return created;
+    });
+
+    if (existingConfirmation) {
+      return NextResponse.json(
+        { error: `${confirmationType} is already confirmed for this fiscal year` },
+        { status: 400 }
+      );
+    }
+
+    // Create confirmation
+    const confirmation = await prisma.fiscalYearConfirmation.create({
+      data: {
+        fiscalYearId,
+        confirmationType,
+        confirmedBy: authResult.user.id,
+        confirmedAt: new Date(),
+        canModify: false, // Lock the configuration
+        ...(metadata && { metadata })
+      }
     });
 
     return NextResponse.json({
       success: true,
-      levelDefinitions: updatedLevelDefinitions
+      confirmation
     });
 
   } catch (error) {
-    console.error('Error updating fiscal year level definitions:', error);
+    console.error('Error creating fiscal year confirmation:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
