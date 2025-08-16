@@ -1,15 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -20,71 +8,53 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Multi-tenant relationship
-  tenantId String?
-  tenant   Tenant? @relation(fields: [tenantId], references: [id])
-
-  // User roles within tenant
-  roles UserRole[]
-  
-  // Enhanced org unit assignments
-  orgAssignments UserOrgAssignment[]
+  id                     String                  @id @default(cuid())
+  email                  String                  @unique
+  name                   String?
+  lineManager            String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  tenantId               String?
+  orgAssignments         UserOrgAssignment[]
+  roles                  UserRole[]
+  tenant                 Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  kpiChampionAssignments OrgUnitKpiChampion[]
 
   @@map("users")
 }
 
 model Tenant {
-  id          String   @id @default(cuid())
-  name        String
-  subdomain   String   @unique
-  settings    Json     @default("{}")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relationships
-  users UserRole[]
-  ownerUsers User[]
-  tenantSettings TenantSettings?
-  perspectives   Perspective[]
+  id             String          @id @default(cuid())
+  name           String
+  subdomain      String          @unique
+  settings       Json            @default("{}")
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  allowedDomains String[]        @default([])
+  fiscalYears    FiscalYear[]
   orgUnits       OrgUnit[]
-  
-  // New fiscal year relationships
-  fiscalYears FiscalYear[]
+  perspectives   Perspective[]
+  tenantSettings TenantSettings?
+  users          UserRole[]
+  ownerUsers     User[]
 
   @@map("tenants")
 }
 
 model TenantSettings {
-  id                String   @id @default(cuid())
-  tenantId          String   @unique
-  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  // Terminology customization with smart defaults
-  terminology       Json     @default("{\"perspectives\":\"Perspectives\",\"objectives\":\"Objectives\",\"kpis\":\"KPIs\",\"targets\":\"Targets\",\"initiatives\":\"Initiatives\"}")
-  
-  // Enhanced organizational structure configuration
-  orgStructureConfig Json    @default("{\"enabledLevels\":[\"ORGANIZATION\",\"DEPARTMENT\",\"INDIVIDUAL\"],\"customLevels\":[]}")
-  
-  // Fiscal year and periods with intelligent defaults
-  fiscalYearStart   DateTime @default("2025-01-01T00:00:00Z")
-  periods           Json     @default("[]")
-  
-  // Basic branding with minimal required fields
-  branding          Json     @default("{}")
-  
-  // Setup completion tracking to guide users
-  setupCompleted    Boolean  @default(false)
-  setupStep         Int      @default(1)
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  tenantId           String   @unique
+  terminology        Json     @default("{\"kpis\": \"KPIs\", \"targets\": \"Targets\", \"objectives\": \"Objectives\", \"initiatives\": \"Initiatives\", \"perspectives\": \"Perspectives\"}")
+  orgStructureConfig Json     @default("{\"customLevels\": [], \"enabledLevels\": [\"ORGANIZATION\", \"DEPARTMENT\", \"INDIVIDUAL\"]}")
+  fiscalYearStart    DateTime @default(dbgenerated("'2025-01-01 00:00:00'::timestamp without time zone"))
+  periods            Json     @default("[]")
+  branding           Json     @default("{}")
+  setupCompleted     Boolean  @default(false)
+  setupStep          Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("tenant_settings")
 }
@@ -92,51 +62,45 @@ model TenantSettings {
 model Perspective {
   id          String   @id @default(cuid())
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  code        String   // Auto-generated from name to reduce typing
+  code        String
   name        String
-  description String?  // Optional to reduce required fields
-  color       String   @default("#3B82F6") // Smart default blue
-  icon        String?  // Optional visual enhancement
-  sortOrder   Int      @default(0) // For drag-drop reordering
+  description String?
+  color       String   @default("#3B82F6")
+  icon        String?
+  sortOrder   Int      @default(0)
   isActive    Boolean  @default(true)
-  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, code])
   @@map("perspectives")
 }
 
 model Role {
-  id          String   @id @default(cuid())
-  name        String   // e.g., "Super Admin", "Strategy Team", "KPI Champ", etc.
-  code        String   @unique // e.g., "SUPER_ADMIN", "STRATEGY_TEAM", etc.
+  id          String     @id @default(cuid())
+  name        String
+  code        String     @unique
   description String?
-  permissions Json     @default("[]") // Array of permission strings
-  isSystem    Boolean  @default(false) // System roles vs custom roles
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relationships
-  users UserRole[]
+  permissions Json       @default("[]")
+  isSystem    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  users       UserRole[]
 
   @@map("roles")
 }
 
 model UserRole {
-  id       String @id @default(cuid())
-  userId   String
-  tenantId String
-  roleId   String
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  roleId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tenantId, roleId])
   @@map("user_roles")
@@ -165,199 +129,182 @@ model AuthCode {
   @@map("auth_codes")
 }
 
-// Enhanced Organizational Structure Models
-
 model OrgUnit {
-  id              String          @id @default(cuid())
-  tenantId        String
-  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  fiscalYearId    String
-  fiscalYear      FiscalYear      @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  id                String                    @id @default(cuid())
+  tenantId          String
+  fiscalYearId      String
   levelDefinitionId String
-  levelDefinition FiscalYearLevelDefinition @relation(fields: [levelDefinitionId], references: [id], onDelete: Cascade)
-  
-  code            String          // Auto-generated or manual
-  name            String
-  description     String?
-  parentId        String?         // Self-referential for hierarchy
-  parent          OrgUnit?        @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
-  children        OrgUnit[]       @relation("OrgUnitHierarchy")
-  
-  // Smart features to reduce data entry
-  isActive        Boolean         @default(true)
-  sortOrder       Int             @default(0)
-  metadata        Json            @default("{}") // Flexible data storage
-  
-  // Effective dating for re-orgs
-  effectiveFrom   DateTime        @default(now())
-  effectiveTo     DateTime?
-  
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
-  // User assignments to any org unit
-  userAssignments UserOrgAssignment[]
+  code              String
+  name              String
+  description       String?
+  parentId          String?
+  isActive          Boolean                   @default(true)
+  sortOrder         Int                       @default(0)
+  metadata          Json                      @default("{}")
+  effectiveFrom     DateTime                  @default(now())
+  effectiveTo       DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  fiscalYear        FiscalYear                @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  levelDefinition   FiscalYearLevelDefinition @relation(fields: [levelDefinitionId], references: [id], onDelete: Cascade)
+  parent            OrgUnit?                  @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children          OrgUnit[]                 @relation("OrgUnitHierarchy")
+  tenant            Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userAssignments   UserOrgAssignment[]
+  kpiChampions      OrgUnitKpiChampion[]
 
   @@unique([fiscalYearId, levelDefinitionId, code])
   @@map("org_units")
 }
 
 model UserOrgAssignment {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgUnitId String
-  orgUnit   OrgUnit  @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
-  
-  // Role within this org unit (optional, can use UserRole instead)
-  role      String?  // "MANAGER", "MEMBER", "OWNER", etc.
-  
-  // Effective dating for changes
-  effectiveFrom DateTime @default(now())
+  id            String    @id @default(cuid())
+  userId        String
+  orgUnitId     String
+  role          String?
+  effectiveFrom DateTime  @default(now())
   effectiveTo   DateTime?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  orgUnit       OrgUnit   @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, orgUnitId])
   @@map("user_org_assignments")
 }
 
-// PHASE 1: Fiscal Year-Scoped Models
-
 model FiscalYear {
-  id          String   @id @default(cuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
-  name        String   // "FY 2025", "2025", etc.
-  startDate   DateTime
-  endDate     DateTime
-  status      String   @default("draft") // 'draft', 'active', 'locked', 'archived'
-  isCurrent   Boolean  @default(false)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relationships
-  levelDefinitions     FiscalYearLevelDefinition[]
-  confirmations        FiscalYearConfirmation[]
-  perspectives         FiscalYearPerspective[]
-  componentTemplates   PerformanceComponentTemplate[]
-  cascadeRelationships PerformanceCascadeRelationship[]
-  orgUnits            OrgUnit[]
-  
+  id                     String                           @id @default(cuid())
+  tenantId               String
+  name                   String
+  startDate              DateTime
+  endDate                DateTime
+  status                 String                           @default("draft")
+  isCurrent              Boolean                          @default(false)
+  createdAt              DateTime                         @default(now())
+  updatedAt              DateTime                         @updatedAt
+  confirmations          FiscalYearConfirmation[]
+  levelDefinitions       FiscalYearLevelDefinition[]
+  perspectives           FiscalYearPerspective[]
+  tenant                 Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orgUnits               OrgUnit[]
+  cascadeRelationships   PerformanceCascadeRelationship[]
+  componentTemplates     PerformanceComponentTemplate[]
+
   @@unique([tenantId, name])
   @@map("fiscal_years")
 }
 
 model FiscalYearLevelDefinition {
-  id              String     @id @default(cuid())
-  fiscalYearId    String
-  fiscalYear      FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  
-  code            String     // ORGANIZATION, DEPARTMENT, etc.
-  name            String     // Display name
-  pluralName      String     // Plural form
-  hierarchyLevel  Int        // 0=Organization, 1=Department, etc.
-  isStandard      Boolean    @default(true)
-  isEnabled       Boolean    @default(true)
-  icon            String?
-  color           String     @default("#6B7280")
-  metadata        Json       @default("{}")
-  
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  
-  // Relationships
-  componentTemplates     PerformanceComponentTemplate[]
+  id                     String                           @id @default(cuid())
+  fiscalYearId           String
+  code                   String
+  name                   String
+  pluralName             String
+  hierarchyLevel         Int
+  isStandard             Boolean                          @default(true)
+  isEnabled              Boolean                          @default(true)
+  isIndividualUnit       Boolean                          @default(false) // Toggle for Individual Unit level
+  icon                   String?
+  color                  String                           @default("#6B7280")
+  metadata               Json                             @default("{}")
+  createdAt              DateTime                         @default(now())
+  updatedAt              DateTime                         @updatedAt
+  fiscalYear             FiscalYear                       @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  orgUnits               OrgUnit[]
   fromCascadeRelations   PerformanceCascadeRelationship[] @relation("FromLevel")
   toCascadeRelations     PerformanceCascadeRelationship[] @relation("ToLevel")
-  orgUnits              OrgUnit[]
-  
+  componentTemplates     PerformanceComponentTemplate[]
+
   @@unique([fiscalYearId, code])
   @@unique([fiscalYearId, hierarchyLevel])
   @@map("fiscal_year_level_definitions")
 }
 
 model FiscalYearConfirmation {
-  id                String     @id @default(cuid())
-  fiscalYearId      String
-  fiscalYear        FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  
-  confirmationType  String     // 'org_structure', 'performance_components'
-  confirmedBy       String     // User ID
-  confirmedAt       DateTime
-  canModify         Boolean    @default(false)
-  metadata          Json?      // Optional metadata for confirmations
-  
-  createdAt         DateTime   @default(now())
-  
+  id               String     @id @default(cuid())
+  fiscalYearId     String
+  confirmationType String
+  confirmedBy      String
+  confirmedAt      DateTime
+  canModify        Boolean    @default(false)
+  metadata         Json?
+  createdAt        DateTime   @default(now())
+  fiscalYear       FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+
   @@unique([fiscalYearId, confirmationType])
   @@map("fiscal_year_confirmations")
 }
 
-// Phase 2 models for Performance Components
 model FiscalYearPerspective {
   id            String     @id @default(cuid())
   fiscalYearId  String
-  fiscalYear    FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  
-  code          String     // Auto-generated from name
+  code          String
   name          String
   description   String?
   color         String     @default("#3B82F6")
   icon          String?
   sequenceOrder Int
   isActive      Boolean    @default(true)
-  
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
-  
+  fiscalYear    FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+
   @@unique([fiscalYearId, code])
   @@unique([fiscalYearId, sequenceOrder])
   @@map("fiscal_year_perspectives")
 }
 
 model PerformanceComponentTemplate {
-  id              String                    @id @default(cuid())
-  fiscalYearId    String
-  fiscalYear      FiscalYear               @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  orgLevelId      String
-  orgLevel        FiscalYearLevelDefinition @relation(fields: [orgLevelId], references: [id], onDelete: Cascade)
-  
-  componentType   String     // 'perspective', 'entry', 'objective', 'kpi', 'target', 'exit'
-  componentName   String     // Custom terminology
-  isStandard      Boolean    @default(false)
-  isMandatory     Boolean    @default(false)
-  sequenceOrder   Int
-  metadata        Json       @default("{}")
-  
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  
-  // Relationships for cascade
-  exitRelationships  PerformanceCascadeRelationship[] @relation("ExitComponent")
+  id                 String                           @id @default(cuid())
+  fiscalYearId       String
+  orgLevelId         String
+  componentType      String
+  componentName      String
+  isStandard         Boolean                          @default(false)
+  isMandatory        Boolean                          @default(false)
+  sequenceOrder      Int
+  metadata           Json                             @default("{}")
+  createdAt          DateTime                         @default(now())
+  updatedAt          DateTime                         @updatedAt
   entryRelationships PerformanceCascadeRelationship[] @relation("EntryComponent")
-  
+  exitRelationships  PerformanceCascadeRelationship[] @relation("ExitComponent")
+  fiscalYear         FiscalYear                       @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  orgLevel           FiscalYearLevelDefinition        @relation(fields: [orgLevelId], references: [id], onDelete: Cascade)
+
   @@unique([fiscalYearId, orgLevelId, componentType])
   @@map("performance_component_templates")
 }
 
 model PerformanceCascadeRelationship {
-  id                String                     @id @default(cuid())
-  fiscalYearId      String
-  fiscalYear        FiscalYear                @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  fromLevelId       String
-  fromLevel         FiscalYearLevelDefinition @relation("FromLevel", fields: [fromLevelId], references: [id], onDelete: Cascade)
-  toLevelId         String
-  toLevel           FiscalYearLevelDefinition @relation("ToLevel", fields: [toLevelId], references: [id], onDelete: Cascade)
-  exitComponentId   String
-  exitComponent     PerformanceComponentTemplate @relation("ExitComponent", fields: [exitComponentId], references: [id], onDelete: Cascade)
-  entryComponentId  String
-  entryComponent    PerformanceComponentTemplate @relation("EntryComponent", fields: [entryComponentId], references: [id], onDelete: Cascade)
-  
-  createdAt         DateTime   @default(now())
-  
+  id               String                       @id @default(cuid())
+  fiscalYearId     String
+  fromLevelId      String
+  toLevelId        String
+  exitComponentId  String
+  entryComponentId String
+  createdAt        DateTime                     @default(now())
+  entryComponent   PerformanceComponentTemplate @relation("EntryComponent", fields: [entryComponentId], references: [id], onDelete: Cascade)
+  exitComponent    PerformanceComponentTemplate @relation("ExitComponent", fields: [exitComponentId], references: [id], onDelete: Cascade)
+  fiscalYear       FiscalYear                   @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  fromLevel        FiscalYearLevelDefinition    @relation("FromLevel", fields: [fromLevelId], references: [id], onDelete: Cascade)
+  toLevel          FiscalYearLevelDefinition    @relation("ToLevel", fields: [toLevelId], references: [id], onDelete: Cascade)
+
   @@map("performance_cascade_relationships")
+}
+
+model OrgUnitKpiChampion {
+  id        String   @id @default(cuid())
+  orgUnitId String
+  userId    String
+  assignedBy String
+  assignedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  orgUnit   OrgUnit  @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgUnitId, userId])
+  @@map("org_unit_kpi_champions")
 }

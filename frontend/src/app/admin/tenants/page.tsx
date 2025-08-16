@@ -22,6 +22,7 @@ interface TenantFormData {
   subdomain: string;
   adminEmail: string;
   adminName: string;
+  allowedDomains: string;
 }
 
 function TenantManagementContent() {
@@ -37,7 +38,8 @@ function TenantManagementContent() {
     name: '',
     subdomain: '',
     adminEmail: '',
-    adminName: ''
+    adminName: '',
+    allowedDomains: ''
   });
 
   // Load tenants (Super Admin only)
@@ -79,6 +81,32 @@ function TenantManagementContent() {
       return;
     }
 
+    // Validate allowed domains format if provided
+    let allowedDomainsArray: string[] = [];
+    if (formData.allowedDomains.trim()) {
+      // Parse comma or space separated domains
+      allowedDomainsArray = formData.allowedDomains
+        .split(/[,\s]+/)
+        .map(domain => domain.trim().toLowerCase())
+        .filter(domain => domain.length > 0);
+
+      // Validate domain format
+      const domainRegex = /^[a-z0-9][a-z0-9-]*[a-z0-9]*\.[a-z]{2,}$/;
+      for (const domain of allowedDomainsArray) {
+        if (!domainRegex.test(domain)) {
+          setErrorMessage(`Invalid domain format: ${domain}`);
+          return;
+        }
+      }
+
+      // Validate admin email against allowed domains
+      const adminEmailDomain = formData.adminEmail.split('@')[1]?.toLowerCase();
+      if (adminEmailDomain && !allowedDomainsArray.includes(adminEmailDomain)) {
+        setErrorMessage(`Admin email domain "${adminEmailDomain}" is not in the allowed domains list: ${allowedDomainsArray.join(', ')}`);
+        return;
+      }
+    }
+
     setCreating(true);
     setErrorMessage('');
     setSuccessMessage('');
@@ -91,7 +119,10 @@ function TenantManagementContent() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          allowedDomains: allowedDomainsArray
+        })
       });
 
       if (response.ok) {
@@ -99,7 +130,7 @@ function TenantManagementContent() {
         setTenants([...tenants, result.data.tenant]);
         setSuccessMessage(`Tenant "${formData.name}" created successfully! Organization Admin: ${formData.adminEmail}`);
         setShowCreateForm(false);
-        setFormData({ name: '', subdomain: '', adminEmail: '', adminName: '' });
+        setFormData({ name: '', subdomain: '', adminEmail: '', adminName: '', allowedDomains: '' });
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
         const error = await response.json();
@@ -229,6 +260,14 @@ function TenantManagementContent() {
                 onChange={(value) => setFormData({ ...formData, adminEmail: value })}
                 required
                 helpText="This person will receive login instructions"
+              />
+
+              <Input
+                label="Allowed Email Domains (optional)"
+                placeholder="e.g., acme.com, company.org"
+                value={formData.allowedDomains}
+                onChange={(value) => setFormData({ ...formData, allowedDomains: value })}
+                helpText="Comma-separated list of domains allowed for user registration. Leave empty to allow all domains."
               />
             </div>
 

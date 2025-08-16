@@ -23,7 +23,6 @@ This document outlines the corrected MetricSoft tenant management user flow, sep
 
 ### 👥 Other Roles
 - **STRATEGY_TEAM**: Strategic oversight, no longer has settings access
-- **KPI_CHAMP**: Department-level KPI management
 - **EMPLOYEE**: Individual KPI access
 
 ## Corrected User Flow
@@ -99,7 +98,7 @@ This document outlines the corrected MetricSoft tenant management user flow, sep
 
 **Organization Admin Can**:
 - Create user accounts for their tenant
-- Assign roles: `STRATEGY_TEAM`, `KPI_CHAMP`, `EMPLOYEE`
+- Assign roles: `STRATEGY_TEAM`, `EMPLOYEE`
 - Manage user permissions within their organization
 - **Cannot assign**: `SUPER_ADMIN` role (system-reserved)
 

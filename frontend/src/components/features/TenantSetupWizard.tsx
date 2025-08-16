@@ -3,7 +3,6 @@ import { useTenantSettings, useSetupWizard, useFiscalYears } from '../../hooks/u
 import { Button, Card, ProgressBar } from '../ui'
 import { QuickSetupSelector } from './QuickSetupSelector'
 import { TerminologyEditor } from './TerminologyEditor'
-import { PerspectiveManager } from './PerspectiveManager'
 import { SetupPreview } from './SetupPreview'
 
 export function TenantSetupWizard() {
@@ -19,7 +18,7 @@ export function TenantSetupWizard() {
     progressPercentage,
     showPreview,
     togglePreview
-  } = useSetupWizard(4)
+  } = useSetupWizard(3)
 
   const [localChanges, setLocalChanges] = useState<Record<string, any>>({})
 
@@ -68,18 +67,6 @@ export function TenantSetupWizard() {
     },
     {
       id: 3,
-      title: 'Perspectives',
-      subtitle: 'Define your strategic areas',
-      component: currentFiscalYear ? (
-        <PerspectiveManager fiscalYearId={currentFiscalYear.id} />
-      ) : (
-        <div className="text-center text-gray-500">
-          Loading fiscal year...
-        </div>
-      )
-    },
-    {
-      id: 4,
       title: 'Review',
       subtitle: 'Confirm your setup',
       component: (

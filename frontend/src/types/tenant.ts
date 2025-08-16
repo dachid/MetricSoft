@@ -27,17 +27,6 @@ export interface TenantSettings {
   };
 }
 
-export interface Perspective {
-  id: string;
-  code: string;
-  name: string;
-  description?: string;
-  color: string;
-  icon?: string;
-  sortOrder: number;
-  isActive: boolean;
-}
-
 export interface Tenant {
   id: string;
   name: string;
@@ -58,7 +47,6 @@ export interface FiscalYear {
   }>;
   _count: {
     levelDefinitions: number;
-    perspectives: number;
   };
 }
 
@@ -89,7 +77,7 @@ export interface TerminologyPreset {
 
 export interface PerformanceComponent {
   id?: string;
-  componentType: 'perspective' | 'entry' | 'objective' | 'kpi' | 'target' | 'exit';
+  componentType: 'entry' | 'objective' | 'kpi' | 'target' | 'exit';
   componentName: string;
   isStandard: boolean;
   isMandatory: boolean;

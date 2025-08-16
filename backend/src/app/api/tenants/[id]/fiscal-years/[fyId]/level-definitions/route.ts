@@ -41,7 +41,25 @@ export async function GET(
       orderBy: { hierarchyLevel: 'asc' }
     });
 
-    return NextResponse.json({ levelDefinitions });
+    // Check if organizational structure is confirmed
+    const confirmation = await prisma.fiscalYearConfirmation.findUnique({
+      where: {
+        fiscalYearId_confirmationType: {
+          fiscalYearId,
+          confirmationType: 'org_structure'
+        }
+      }
+    });
+
+    const isConfirmed = !!confirmation;
+
+    return NextResponse.json({ 
+      levelDefinitions: levelDefinitions.map(level => ({
+        ...level,
+        isConfirmed
+      })),
+      isConfirmed
+    });
 
   } catch (error) {
     console.error('Error fetching fiscal year level definitions:', error);
@@ -118,6 +136,7 @@ export async function PUT(
             hierarchyLevel: levelDef.hierarchyLevel,
             isStandard: levelDef.isStandard || false,
             isEnabled: levelDef.isEnabled !== false,
+            isIndividualUnit: levelDef.isIndividualUnit || false,
             icon: levelDef.icon,
             color: levelDef.color || '#6B7280',
             metadata: levelDef.metadata || {}

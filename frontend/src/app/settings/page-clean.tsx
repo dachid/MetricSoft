@@ -16,6 +16,5 @@ const tabs = [
   { id: 'fiscal-year', label: 'Fiscal Year', icon: '📅', description: 'Manage fiscal years and timeline' },
   { id: 'org-structure', label: 'Organizational Structure', icon: '🏢', description: 'Configure organizational levels' },
   { id: 'performance-components', label: 'Performance Components', icon: '🎯', description: 'Setup performance management system' },
-  { id: 'branding', label: 'Branding', icon: '🎨', description: 'Customize your brand appearance' },
-  { id: 'perspectives', label: 'Perspectives', icon: '👁️', description: 'Manage strategic perspectives' }
+  { id: 'branding', label: 'Branding', icon: '🎨', description: 'Customize your brand appearance' }
 ];

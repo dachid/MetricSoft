@@ -20,32 +20,10 @@ async function main() {
       where: { code: 'ORGANIZATION_ADMIN' },
       update: {},
       create: {
-        name: 'Organization Administrator',
+        name: 'Organizational Administrator',
         code: 'ORGANIZATION_ADMIN',
         description: 'Full tenant access including user management and organization setup (cannot create new tenants)',
         permissions: ['manage:tenant_settings', 'manage:users', 'manage:organization', 'read:all_kpis', 'write:all_kpis', 'manage:cascades', 'view:reports'],
-        isSystem: true
-      }
-    }),
-    prisma.role.upsert({
-      where: { code: 'STRATEGY_TEAM' },
-      update: {},
-      create: {
-        name: 'Strategy Team',
-        code: 'STRATEGY_TEAM',
-        description: 'Strategic oversight and KPI management',
-        permissions: ['read:all_kpis', 'write:all_kpis', 'manage:cascades', 'view:reports'],
-        isSystem: true
-      }
-    }),
-    prisma.role.upsert({
-      where: { code: 'KPI_CHAMP' },
-      update: {},
-      create: {
-        name: 'KPI Champion',
-        code: 'KPI_CHAMP',
-        description: 'Department-level KPI management',
-        permissions: ['read:dept_kpis', 'write:dept_kpis', 'manage:evidence'],
         isSystem: true
       }
     }),
@@ -55,8 +33,19 @@ async function main() {
       create: {
         name: 'Employee',
         code: 'EMPLOYEE',
-        description: 'Individual KPI access',
-        permissions: ['read:own_kpis', 'write:own_kpis', 'submit:evidence'],
+        description: 'Individual KPI access and performance management',
+        permissions: ['read:own_kpis', 'write:own_kpis', 'submit:evidence', 'view:own_reports'],
+        isSystem: true
+      }
+    }),
+    prisma.role.upsert({
+      where: { code: 'KPI_CHAMPION' },
+      update: {},
+      create: {
+        name: 'KPI Champion',
+        code: 'KPI_CHAMPION',
+        description: 'Responsible for specific KPIs within organizational units',
+        permissions: ['read:assigned_kpis', 'write:assigned_kpis', 'manage:kpi_evidence', 'view:kpi_reports'],
         isSystem: true
       }
     })

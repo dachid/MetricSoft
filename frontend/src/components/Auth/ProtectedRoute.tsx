@@ -29,18 +29,35 @@ export default function ProtectedRoute({
   const [hasAccess, setHasAccess] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
 
+  console.log('🔍 ProtectedRoute render:', { 
+    user: !!user, 
+    loading, 
+    hasAccess, 
+    checkingAccess, 
+    requiredRoles,
+    userRoles: user?.roles?.map(r => r.code)
+  });
+
   useEffect(() => {
+    console.log('🔍 ProtectedRoute useEffect triggered:', { user: !!user, loading });
     const checkAccess = async () => {
-      if (loading) return;
+      if (loading) {
+        console.log('🔍 ProtectedRoute - Still loading auth, waiting...');
+        return;
+      }
       
       if (!user) {
+        console.log('🔍 ProtectedRoute - No user, redirecting to login');
         router.push('/login');
         return;
       }
 
+      console.log('🔍 ProtectedRoute - User found, checking access...', { requiredRoles, requiredPermissions });
+
       try {
         // Fetch user roles if we need to check permissions/roles
         if (requiredPermissions.length > 0 || requiredRoles.length > 0) {
+          console.log('🔍 ProtectedRoute - Fetching user roles from API...');
           const token = localStorage.getItem('metricsoft_auth_token');
           const response = await fetch('http://localhost:5000/api/auth/me', {
             headers: {
@@ -48,8 +65,11 @@ export default function ProtectedRoute({
             }
           });
 
+          console.log('🔍 ProtectedRoute - API response status:', response.status);
+
           if (response.ok) {
             const userData = await response.json();
+            console.log('🔍 ProtectedRoute - User data from API:', userData);
             const userRoles: UserRole[] = userData.data.roles || [];
             
             // Check if user has required roles
@@ -58,7 +78,10 @@ export default function ProtectedRoute({
                 requiredRoles.includes(userRole.role.code)
               );
               
+              console.log('🔍 ProtectedRoute - Role check:', { hasRequiredRole, userRoles: userRoles.map(r => r.role.code) });
+              
               if (!hasRequiredRole) {
+                console.log('🔍 ProtectedRoute - No required role, redirecting to fallback');
                 router.push(fallbackUrl);
                 return;
               }
@@ -71,22 +94,30 @@ export default function ProtectedRoute({
                 userPermissions.includes('*') || userPermissions.includes(permission)
               );
               
+              console.log('🔍 ProtectedRoute - Permission check:', { hasAllPermissions, userPermissions });
+              
               if (!hasAllPermissions) {
+                console.log('🔍 ProtectedRoute - No required permissions, redirecting to fallback');
                 router.push(fallbackUrl);
                 return;
               }
             }
           } else {
+            console.log('🔍 ProtectedRoute - API call failed, redirecting to login');
             router.push('/login');
             return;
           }
+        } else {
+          console.log('🔍 ProtectedRoute - No role/permission checks required');
         }
 
+        console.log('🔍 ProtectedRoute - Access granted!');
         setHasAccess(true);
       } catch (error) {
-        console.error('Error checking access:', error);
+        console.error('🔍 ProtectedRoute - Error checking access:', error);
         router.push('/login');
       } finally {
+        console.log('🔍 ProtectedRoute - Setting checkingAccess to false');
         setCheckingAccess(false);
       }
     };

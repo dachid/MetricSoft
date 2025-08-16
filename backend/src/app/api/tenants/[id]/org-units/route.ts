@@ -93,6 +93,17 @@ export async function GET(
               }
             }
           }
+        },
+        kpiChampions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
         }
       },
       orderBy: [
@@ -149,7 +160,9 @@ export async function POST(
       description, 
       code: providedCode,
       metadata,
-      effectiveFrom 
+      effectiveFrom,
+      fiscalYearId,
+      kpiChampionIds = []
     } = body;
 
     // Validation
@@ -157,16 +170,37 @@ export async function POST(
       throw new ValidationError('Name and level definition are required');
     }
 
+    // Validate fiscal year if provided
+    if (fiscalYearId) {
+      const fiscalYear = await (prisma as any).fiscalYear.findFirst({
+        where: {
+          id: fiscalYearId,
+          tenantId
+        }
+      });
+
+      if (!fiscalYear) {
+        throw new ValidationError('Invalid fiscal year');
+      }
+    }
+
     // Verify level definition exists and belongs to this tenant
-    const levelDef = await (prisma as any).levelDefinition.findFirst({
+    const levelDef = await (prisma as any).fiscalYearLevelDefinition.findFirst({
       where: {
         id: levelDefinitionId,
-        tenantId,
+        ...(fiscalYearId && { fiscalYearId }),
         isEnabled: true
+      },
+      include: {
+        fiscalYear: {
+          select: {
+            tenantId: true
+          }
+        }
       }
     });
 
-    if (!levelDef) {
+    if (!levelDef || levelDef.fiscalYear.tenantId !== tenantId) {
       throw new ValidationError('Invalid or disabled level definition');
     }
 
@@ -175,6 +209,11 @@ export async function POST(
       name.toUpperCase()
           .replace(/[^A-Z0-9]/g, '_')
           .substring(0, 20);
+
+    // Validate code format if provided (2-4 characters for manual entry)
+    if (providedCode && !/^[A-Z0-9]{2,4}$/.test(providedCode)) {
+      throw new ValidationError('Code must be 2-4 uppercase letters or numbers');
+    }
 
     // Check for duplicate codes within the same level and tenant
     const existingUnit = await (prisma as any).orgUnit.findFirst({
@@ -187,6 +226,20 @@ export async function POST(
 
     if (existingUnit) {
       throw new ValidationError(`Organization unit with code "${code}" already exists at this level`);
+    }
+
+    // Verify KPI champions exist and belong to tenant
+    if (kpiChampionIds.length > 0) {
+      const champions = await (prisma as any).user.findMany({
+        where: {
+          id: { in: kpiChampionIds },
+          tenantId
+        }
+      });
+
+      if (champions.length !== kpiChampionIds.length) {
+        throw new ValidationError('Some KPI champions not found in this organization');
+      }
     }
 
     // Validate parent hierarchy if parentId provided
@@ -230,6 +283,7 @@ export async function POST(
     const newOrgUnit = await (prisma as any).orgUnit.create({
       data: {
         tenantId,
+        fiscalYearId: fiscalYearId || levelDef.fiscalYearId,
         levelDefinitionId,
         code,
         name,
@@ -238,7 +292,13 @@ export async function POST(
         metadata: metadata || {},
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
         sortOrder: newSortOrder,
-        isActive: true
+        isActive: true,
+        kpiChampions: {
+          create: kpiChampionIds.map((userId: string) => ({
+            userId,
+            assignedBy: authResult.user?.id || ''
+          }))
+        }
       },
       include: {
         levelDefinition: {
@@ -257,6 +317,17 @@ export async function POST(
             id: true,
             name: true,
             code: true
+          }
+        },
+        kpiChampions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
         }
       }

@@ -23,22 +23,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check for existing session on mount
     const initAuth = async () => {
+      console.log('🔍 AuthProvider - Initializing auth...');
       try {
         const token = localStorage.getItem('metricsoft_auth_token')
         const userData = localStorage.getItem('metricsoft_user')
         
+        console.log('🔍 AuthProvider - Token exists:', !!token);
+        console.log('🔍 AuthProvider - User data exists:', !!userData);
+        
         if (token && userData) {
           const user = JSON.parse(userData)
+          console.log('🔍 AuthProvider - Parsed user:', user);
           setUser(user)
           // Set the token in the API client
           apiClient.setAuthToken(token)
         }
       } catch (error) {
-        console.error('Error initializing auth:', error)
+        console.error('🔍 AuthProvider - Error during auth init:', error)
         localStorage.removeItem('metricsoft_auth_token')
         localStorage.removeItem('metricsoft_user')
         apiClient.clearAuthToken()
       } finally {
+        console.log('🔍 AuthProvider - Setting loading to false');
         setLoading(false)
       }
     }

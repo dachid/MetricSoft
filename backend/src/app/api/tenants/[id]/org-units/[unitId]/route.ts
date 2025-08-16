@@ -65,6 +65,20 @@ export async function GET(
               }
             }
           }
+        },
+        kpiChampions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            assignedAt: 'desc'
+          }
         }
       }
     });
@@ -111,7 +125,8 @@ export async function PUT(
       parentId, 
       metadata,
       sortOrder,
-      effectiveTo 
+      effectiveTo,
+      kpiChampionIds = []
     } = body;
 
     // Get current org unit
@@ -181,37 +196,89 @@ export async function PUT(
       }
     }
 
-    // Update the organizational unit
-    const updatedUnit = await (prisma as any).orgUnit.update({
-      where: { id: unitId },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(code && { code }),
-        ...(parentId !== undefined && { parentId }),
-        ...(metadata && { metadata }),
-        ...(sortOrder !== undefined && { sortOrder }),
-        ...(effectiveTo !== undefined && { effectiveTo: effectiveTo ? new Date(effectiveTo) : null }),
-        updatedAt: new Date()
-      },
-      include: {
-        levelDefinition: true,
-        parent: {
-          select: {
-            id: true,
-            name: true,
-            code: true
-          }
-        },
-        children: {
-          where: { isActive: true },
-          select: {
-            id: true,
-            name: true,
-            code: true
-          }
+    // Verify KPI champions exist and belong to tenant if provided
+    if (kpiChampionIds.length > 0) {
+      const champions = await (prisma as any).user.findMany({
+        where: {
+          id: { in: kpiChampionIds },
+          tenantId
+        }
+      });
+
+      if (champions.length !== kpiChampionIds.length) {
+        throw new ValidationError('Some KPI champions not found in this organization');
+      }
+    }
+
+    // Update the organizational unit with transaction to handle KPI champions
+    const updatedUnit = await prisma.$transaction(async (tx) => {
+      // Update the unit itself
+      const unit = await tx.orgUnit.update({
+        where: { id: unitId },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(code && { code }),
+          ...(parentId !== undefined && { parentId }),
+          ...(metadata && { metadata }),
+          ...(sortOrder !== undefined && { sortOrder }),
+          ...(effectiveTo !== undefined && { effectiveTo: effectiveTo ? new Date(effectiveTo) : null }),
+          updatedAt: new Date()
+        }
+      });
+
+      // Update KPI champions if provided
+      if (kpiChampionIds !== undefined) {
+        // Remove existing KPI champion assignments
+        await (tx as any).orgUnitKpiChampion.deleteMany({
+          where: { orgUnitId: unitId }
+        });
+
+        // Add new KPI champion assignments
+        if (kpiChampionIds.length > 0) {
+          await (tx as any).orgUnitKpiChampion.createMany({
+            data: kpiChampionIds.map((userId: string) => ({
+              orgUnitId: unitId,
+              userId,
+              assignedBy: authResult.user?.id || 'system'
+            }))
+          });
         }
       }
+
+      // Return the updated unit with all relations
+      return await (tx as any).orgUnit.findUnique({
+        where: { id: unitId },
+        include: {
+          levelDefinition: true,
+          parent: {
+            select: {
+              id: true,
+              name: true,
+              code: true
+            }
+          },
+          children: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              name: true,
+              code: true
+            }
+          },
+          kpiChampions: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          }
+        }
+      });
     });
 
     return NextResponse.json({

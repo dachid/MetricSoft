@@ -491,4 +491,6 @@ export function Separator({ className = '', orientation = 'horizontal' }: Separa
 export { DatabaseStatus } from './DatabaseStatus';
 export { ErrorDisplay } from './ErrorDisplay';
 export { ConfirmationDialog } from './ConfirmationDialog';
+export { default as UserAutocomplete } from './UserAutocomplete';
+export { default as MultiEmailAutocomplete } from './MultiEmailAutocomplete';
 

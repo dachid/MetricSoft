@@ -5,8 +5,32 @@ import { useAuth } from '@/lib/auth-context';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { HierarchyConfiguration } from '@/components/features/HierarchyConfiguration';
+import { OrganogramVisualization } from '@/components/features/OrganogramVisualization';
+import { StructureConfirmation } from '@/components/features/StructureConfirmation';
 import FiscalYearSelector from '@/components/FiscalYear/FiscalYearSelector';
 import { Building2, Calendar, AlertTriangle, ArrowRight } from 'lucide-react';
+
+interface OrgUnit {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  parentId?: string;
+  levelDefinition: {
+    id: string;
+    name: string;
+    level: number;
+  };
+  kpiChampions: Array<{
+    id: string;
+    user: {
+      id: string;
+      email: string;
+      firstName?: string;
+      lastName?: string;
+    };
+  }>;
+}
 
 interface FiscalYear {
   id: string;
@@ -16,12 +40,13 @@ interface FiscalYear {
   status: 'draft' | 'active' | 'locked' | 'archived';
   isCurrent: boolean;
   confirmations: Array<{
+    id: string;
     confirmationType: string;
     confirmedAt: string;
+    confirmedBy: string; // User ID string
   }>;
   _count: {
     levelDefinitions: number;
-    perspectives: number;
   };
 }
 
@@ -38,132 +63,245 @@ function OrganizationalStructureContent() {
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>([]);
+  const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   
   const isSuperAdmin = user?.roles?.some(role => role.code === 'SUPER_ADMIN');
 
+  console.log('🔍 OrganizationalStructureContent - Initial state:', {
+    user,
+    isSuperAdmin,
+    loading,
+    selectedTenantId,
+    fiscalYears: fiscalYears.length,
+    orgUnits: orgUnits.length
+  });
+
   // Load available tenants for Super Admin
   useEffect(() => {
+    console.log('🔍 useEffect [loadTenants] triggered:', { isSuperAdmin, user });
     const loadTenants = async () => {
-      if (!isSuperAdmin) return;
+      if (!isSuperAdmin) {
+        console.log('🔍 Not super admin, skipping tenant loading');
+        return;
+      }
       
+      console.log('🔍 Loading tenants for super admin...');
       try {
         const token = localStorage.getItem('metricsoft_auth_token');
+        console.log('🔍 Token exists:', !!token);
+        
         const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
         
+        console.log('🔍 Tenants API response status:', response.status);
+        
         if (response.ok) {
           const result = await response.json();
-          setAvailableTenants(result.data);
-          if (result.data.length > 0 && !selectedTenantId) {
-            setSelectedTenantId(result.data[0].id);
+          console.log('🔍 Tenants API result:', result);
+          setAvailableTenants(result.data || []);
+          if ((result.data || []).length > 0 && !selectedTenantId) {
+            console.log('🔍 Auto-selecting first tenant:', (result.data || [])[0].id);
+            setSelectedTenantId((result.data || [])[0].id);
           }
+        } else {
+          const errorText = await response.text();
+          console.error('🔍 Tenants API failed:', response.status, errorText);
         }
       } catch (error) {
-        console.error('Error loading tenants:', error);
+        console.error('🔍 Error loading tenants:', error);
         setErrorMessage('Failed to load tenants');
+        // Still set available tenants to empty array so Super Admin can see an empty state
+        setAvailableTenants([]);
       }
     };
 
     loadTenants();
   }, [isSuperAdmin, user]);
 
-  // Load fiscal years
+  // Load fiscal years and org units
   useEffect(() => {
-    const loadFiscalYears = async () => {
+    console.log('🔍 useEffect [loadData] triggered:', { user, selectedTenantId, isSuperAdmin });
+    const loadData = async () => {
       let tenantIdToUse;
       
       if (isSuperAdmin) {
         if (!selectedTenantId) {
+          console.log('🔍 Super admin but no tenant selected, stopping');
           setLoading(false);
           return;
         }
         tenantIdToUse = selectedTenantId;
       } else {
         if (!user?.tenantId) {
+          console.log('🔍 Regular user but no tenantId, stopping');
           setLoading(false);
           return;
         }
         tenantIdToUse = user.tenantId;
       }
       
+      console.log('🔍 Using tenant ID:', tenantIdToUse);
+      
       try {
         const token = localStorage.getItem('metricsoft_auth_token');
+        console.log('🔍 Token exists for data loading:', !!token);
 
         // Load fiscal years
+        console.log('🔍 Loading fiscal years...');
         const fyResponse = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/fiscal-years`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
         
-        console.log('Fiscal years response status:', fyResponse.status);
+        console.log('🔍 Fiscal years response status:', fyResponse.status);
         
         if (fyResponse.ok) {
           const fyResult = await fyResponse.json();
-          console.log('Fiscal years response:', fyResult);
-          
-          // Handle both array response and object with data property
+          console.log('🔍 Fiscal years raw result:', fyResult);
           const fiscalYearsData = Array.isArray(fyResult) ? fyResult : (fyResult.data || []);
-          console.log('Processed fiscal years:', fiscalYearsData);
+          console.log('🔍 Processed fiscal years:', fiscalYearsData);
           
           setFiscalYears(fiscalYearsData);
           // Auto-select current fiscal year
           const currentFY = fiscalYearsData.find((fy: FiscalYear) => fy.isCurrent);
           if (currentFY) {
+            console.log('🔍 Auto-selecting current FY:', currentFY);
             setSelectedFiscalYear(currentFY);
+            await loadOrgUnits(tenantIdToUse, currentFY.id);
           } else if (fiscalYearsData.length > 0) {
+            console.log('🔍 Auto-selecting first FY:', fiscalYearsData[0]);
             setSelectedFiscalYear(fiscalYearsData[0]);
+            await loadOrgUnits(tenantIdToUse, fiscalYearsData[0].id);
+          } else {
+            console.log('🔍 No fiscal years found');
           }
         } else {
           const errorText = await fyResponse.text();
-          console.log('Fiscal years request failed:', fyResponse.status, errorText);
+          console.error('🔍 Fiscal years request failed:', fyResponse.status, errorText);
         }
       } catch (error) {
-        console.error('Error loading fiscal years:', error);
+        console.error('🔍 Error loading data:', error);
       } finally {
+        console.log('🔍 Setting loading to false');
         setLoading(false);
       }
     };
 
-    loadFiscalYears();
+    loadData();
   }, [user, selectedTenantId, isSuperAdmin]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading organizational structure...</p>
-        </div>
-      </div>
-    );
-  }
+  // Load organizational units for selected fiscal year
+  const loadOrgUnits = async (tenantId: string, fiscalYearId: string) => {
+    console.log('🔍 Loading org units:', { tenantId, fiscalYearId });
+    try {
+      const token = localStorage.getItem('metricsoft_auth_token');
+      const url = `http://localhost:5000/api/tenants/${tenantId}/org-units?fiscalYearId=${fiscalYearId}`;
+      console.log('🔍 Org units URL:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      console.log('🔍 Org units response status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('🔍 Org units result:', result);
+        const orgUnitsData = result.data?.orgUnits || [];
+        console.log('🔍 Setting org units:', orgUnitsData);
+        setOrgUnits(orgUnitsData);
+      } else {
+        const errorText = await response.text();
+        console.error('🔍 Failed to load organizational units:', response.status, errorText);
+        setOrgUnits([]);
+      }
+    } catch (error) {
+      console.error('🔍 Error loading organizational units:', error);
+      setOrgUnits([]);
+    }
+  };
 
-  return (
-    <div className="space-y-6">
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-green-800">{successMessage}</p>
-            </div>
+  // Handle fiscal year selection change
+  const handleFiscalYearChange = async (fiscalYear: FiscalYear | null) => {
+    console.log('🔍 Fiscal year changed:', fiscalYear);
+    setSelectedFiscalYear(fiscalYear);
+    setOrgUnits([]);
+    
+    if (fiscalYear) {
+      const tenantIdToUse = selectedTenantId || user?.tenantId;
+      console.log('🔍 Loading org units for new fiscal year:', { tenantIdToUse, fiscalYearId: fiscalYear.id });
+      if (tenantIdToUse) {
+        await loadOrgUnits(tenantIdToUse, fiscalYear.id);
+      }
+    }
+  };
+
+  // Handle confirmation update
+  const handleConfirmationUpdate = (updatedFiscalYear: FiscalYear) => {
+    console.log('🔍 Confirmation updated:', updatedFiscalYear);
+    setSelectedFiscalYear(updatedFiscalYear);
+    
+    // Update the fiscal year in the list
+    setFiscalYears(prev => 
+      prev.map(fy => fy.id === updatedFiscalYear.id ? updatedFiscalYear : fy)
+    );
+    
+    setSuccessMessage('Organizational structure confirmed successfully!');
+    setTimeout(() => setSuccessMessage(''), 5000);
+  };
+
+    console.log('🔍 Current render state:', {
+      loading,
+      fiscalYears: fiscalYears.length,
+      selectedFiscalYear: selectedFiscalYear?.name,
+      orgUnits: orgUnits.length,
+      successMessage,
+      errorMessage,
+      isSuperAdmin,
+      selectedTenantId,
+      userTenantId: user?.tenantId
+    });
+
+    console.log('🔍 About to render main content');
+
+    if (loading) {
+      console.log('🔍 Rendering loading state');
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading organizational structure...</p>
           </div>
         </div>
-      )}
+      );
+    }
 
-      {errorMessage && (
+    return (
+      <div className="space-y-6">
+        {/* Success/Error Messages */}
+        {successMessage && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-green-800">{successMessage}</p>
+              </div>
+            </div>
+          </div>
+        )}      {errorMessage && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -208,18 +346,27 @@ function OrganizationalStructureContent() {
         </div>
       )}
 
-      {/* Show message if no organization selected for Super Admin */}
-      {isSuperAdmin && !selectedTenantId && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-          <div className="text-gray-400 text-6xl mb-4">🏢</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Organization Selected</h3>
-          <p className="text-gray-600">
-            Please select an organization from the dropdown above to manage its organizational structure.
-          </p>
-        </div>
-      )}
+        {/* Show message if no organization selected for Super Admin */}
+        {isSuperAdmin && !selectedTenantId && availableTenants.length > 0 && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+            <div className="text-gray-400 text-6xl mb-4">🏢</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Organization Selected</h3>
+            <p className="text-gray-600">
+              Please select an organization from the dropdown above to manage its organizational structure.
+            </p>
+          </div>
+        )}
 
-      {/* Prerequisites Check */}
+        {/* Show message if no organizations available for Super Admin */}
+        {isSuperAdmin && availableTenants.length === 0 && !loading && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+            <div className="text-gray-400 text-6xl mb-4">🏢</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Organizations Available</h3>
+            <p className="text-gray-600">
+              No organizations are available for management. Please contact the system administrator.
+            </p>
+          </div>
+        )}      {/* Prerequisites Check */}
       {((isSuperAdmin && selectedTenantId) || (!isSuperAdmin && user?.tenantId)) && (
         <>
           {/* Check Fiscal Year Exists */}
@@ -269,7 +416,7 @@ function OrganizationalStructureContent() {
                       value={selectedFiscalYear?.id || ''}
                       onChange={(e) => {
                         const fy = fiscalYears.find(f => f.id === e.target.value);
-                        setSelectedFiscalYear(fy || null);
+                        handleFiscalYearChange(fy || null);
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
@@ -323,6 +470,35 @@ function OrganizationalStructureContent() {
                 </div>
               )}
 
+              {/* Organogram Visualization */}
+              {selectedFiscalYear && selectedFiscalYear._count.levelDefinitions > 0 && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Organizational Structure Visualization
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Visual representation of your organizational hierarchy and KPI champion assignments.
+                    </p>
+                  </div>
+                  
+                  <OrganogramVisualization 
+                    orgUnits={orgUnits}
+                    fiscalYearName={selectedFiscalYear.name}
+                  />
+                </div>
+              )}
+
+              {/* Structure Confirmation */}
+              {selectedFiscalYear && selectedFiscalYear._count.levelDefinitions > 0 && (
+                <StructureConfirmation
+                  fiscalYear={selectedFiscalYear}
+                  orgUnits={orgUnits}
+                  tenantId={selectedTenantId || user?.tenantId || ''}
+                  onConfirmationUpdate={handleConfirmationUpdate}
+                />
+              )}
+
               {/* Next Steps */}
               {selectedFiscalYear && selectedFiscalYear._count.levelDefinitions > 0 && (
                 <div className="bg-gray-50 rounded-lg p-6">
@@ -342,22 +518,6 @@ function OrganizationalStructureContent() {
                         </div>
                       </div>
                     </a>
-                    
-                    <a
-                      href="/perspectives"
-                      className="block p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        <div>
-                          <h4 className="font-medium text-gray-900">Perspectives</h4>
-                          <p className="text-sm text-gray-600">Manage strategic perspectives</p>
-                        </div>
-                      </div>
-                    </a>
                   </div>
                 </div>
               )}
@@ -370,6 +530,8 @@ function OrganizationalStructureContent() {
 }
 
 export default function OrganizationalStructurePage() {
+  console.log('🔍 OrganizationalStructurePage component rendering');
+  console.log('🔍 Current pathname:', window.location.pathname);
   return (
     <ProtectedRoute requiredRoles={['SUPER_ADMIN', 'ORGANIZATION_ADMIN']}>
       <DashboardLayout title="Organizational Structure" subtitle="Configure organizational levels and hierarchy">

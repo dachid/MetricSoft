@@ -22,6 +22,7 @@ interface LevelDefinition {
   hierarchyLevel: number;
   isStandard: boolean;
   isEnabled: boolean;
+  isIndividualUnit: boolean;
   icon?: string;
   color: string;
   metadata: Record<string, any>;
@@ -121,6 +122,7 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
       hierarchyLevel: index,
       isStandard: true,
       isEnabled: level.isRequired || false,
+      isIndividualUnit: level.code === 'INDIVIDUAL', // Default INDIVIDUAL level to true
       icon: level.icon,
       color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
       metadata: {}
@@ -166,6 +168,28 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
       : (level.isStandard
          ? `${level.name} level disabled - changes pending save`
          : `"${level.name}" moved back to Custom Levels section - changes pending save`);
+    onSuccess?.(message);
+  };
+
+  const handleToggleIndividualUnit = async (levelId: string, isIndividualUnit: boolean) => {
+    if (isConfirmed) {
+      onError?.('Organizational structure is confirmed and cannot be modified for this fiscal year. Select a different fiscal year to make changes.');
+      return;
+    }
+
+    const level = levels.find(l => l.id === levelId || l.code === levelId);
+    if (!level) return;
+
+    // Update local state
+    const updatedLevels = levels.map(l =>
+      (l.id === levelId || l.code === levelId) ? { ...l, isIndividualUnit } : l
+    );
+    setLevels(updatedLevels);
+    setHasUnsavedChanges(true);
+
+    const message = isIndividualUnit 
+      ? `${level.name} level marked as Individual Unit - changes pending save`
+      : `${level.name} level unmarked as Individual Unit - changes pending save`;
     onSuccess?.(message);
   };
 
@@ -315,6 +339,7 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
           hierarchyLevel: level.hierarchyLevel,
           isStandard: level.isStandard,
           isEnabled: level.isEnabled,
+          isIndividualUnit: level.isIndividualUnit,
           icon: level.icon,
           color: level.color,
           metadata: level.metadata || {}
@@ -463,15 +488,40 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
                             </div>
                             <div className="flex items-center space-x-3">
                               <span className="text-2xl">{level.icon}</span>
-                              <div>
+                              <div className="flex-1">
                                 <div className="font-medium text-gray-900">
                                   Level {index + 1}: {level.name}
                                   {level.code === 'ORGANIZATION' && (
                                     <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Required</span>
                                   )}
                                 </div>
-                                <div className="text-sm text-gray-500">
+                                <div className="text-sm text-gray-500 mb-2">
                                   {level.pluralName} • {level.isStandard ? 'Standard' : 'Custom'}
+                                </div>
+                                
+                                {/* Individual Unit Toggle */}
+                                <div className="flex items-center space-x-2">
+                                  <label className="flex items-center space-x-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={level.isIndividualUnit}
+                                      onChange={(e) => handleToggleIndividualUnit(level.id || level.code, e.target.checked)}
+                                      disabled={isConfirmed}
+                                      className={`w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 ${
+                                        isConfirmed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                      }`}
+                                    />
+                                    <span className={`text-sm ${
+                                      level.isIndividualUnit ? 'text-blue-700 font-medium' : 'text-gray-600'
+                                    } ${isConfirmed ? 'opacity-50' : ''}`}>
+                                      Individual Unit Level
+                                    </span>
+                                  </label>
+                                  {level.isIndividualUnit && (
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                      👤 Individual
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>

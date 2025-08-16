@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, subdomain, adminEmail, adminName } = body;
+    const { name, subdomain, adminEmail, adminName, allowedDomains } = body;
 
     // Validate required fields
     if (!name || !subdomain || !adminEmail || !adminName) {
@@ -75,6 +75,30 @@ export async function POST(request: NextRequest) {
         { error: 'Name, subdomain, admin email, and admin name are required' },
         { status: 400 }
       );
+    }
+
+    // Validate allowedDomains if provided
+    let validatedDomains: string[] = [];
+    if (allowedDomains && Array.isArray(allowedDomains) && allowedDomains.length > 0) {
+      const domainRegex = /^[a-z0-9][a-z0-9-]*[a-z0-9]*\.[a-z]{2,}$/;
+      for (const domain of allowedDomains) {
+        if (typeof domain !== 'string' || !domainRegex.test(domain.toLowerCase())) {
+          return NextResponse.json(
+            { error: `Invalid domain format: ${domain}` },
+            { status: 400 }
+          );
+        }
+      }
+      validatedDomains = allowedDomains.map((d: string) => d.toLowerCase());
+
+      // Validate admin email against allowed domains if domains are specified
+      const adminEmailDomain = adminEmail.split('@')[1]?.toLowerCase();
+      if (adminEmailDomain && !validatedDomains.includes(adminEmailDomain)) {
+        return NextResponse.json(
+          { error: `Admin email domain "${adminEmailDomain}" is not in the allowed domains list: ${validatedDomains.join(', ')}` },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate subdomain format
@@ -129,6 +153,7 @@ export async function POST(request: NextRequest) {
         data: {
           name,
           subdomain,
+          allowedDomains: validatedDomains,
           settings: {},
           isActive: true
         }

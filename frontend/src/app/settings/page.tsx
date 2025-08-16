@@ -100,24 +100,6 @@ function SettingsRedirectContent() {
             </div>
           </a>
 
-          {/* Perspectives */}
-          <a
-            href="/perspectives"
-            className="block p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg border border-indigo-200 hover:border-indigo-300 hover:shadow-lg transition-all group"
-          >
-            <div className="flex items-center space-x-3 mb-3">
-              <Eye className="w-8 h-8 text-indigo-600 group-hover:text-indigo-700" />
-              <h3 className="text-lg font-semibold text-indigo-900">Perspectives</h3>
-            </div>
-            <p className="text-indigo-700 text-sm mb-4">
-              Manage strategic perspectives for balanced scorecards and performance metrics.
-            </p>
-            <div className="flex items-center text-indigo-600 text-sm font-medium">
-              <span>Manage Perspectives</span>
-              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-            </div>
-          </a>
-
           {/* Branding */}
           <a
             href="/branding"
@@ -179,7 +161,7 @@ function SettingsRedirectContent() {
           <ArrowRight className="w-5 h-5 text-gray-400 hidden md:block" />
           <div className="flex items-center space-x-2 text-sm">
             <div className="w-8 h-8 bg-indigo-500 text-white rounded-full flex items-center justify-center font-semibold">4</div>
-            <span className="font-medium text-gray-900">Perspectives & Branding</span>
+            <span className="font-medium text-gray-900">Branding</span>
           </div>
         </div>
         <p className="text-sm text-gray-600 mt-4">

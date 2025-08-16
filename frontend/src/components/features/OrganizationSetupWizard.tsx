@@ -49,6 +49,7 @@ interface LevelDefinition {
   hierarchyLevel: number;
   isStandard: boolean;
   isEnabled: boolean;
+  isIndividualUnit?: boolean;
   icon?: string;
   color: string;
 }
@@ -56,6 +57,7 @@ interface LevelDefinition {
 interface CustomLevel {
   name: string;
   pluralName: string;
+  isIndividualUnit?: boolean;
 }
 
 const SETUP_STEPS: SetupStep[] = [
@@ -102,8 +104,11 @@ export function OrganizationSetupWizard({
   // Form state
   const [organizationName, setOrganizationName] = useState('');
   const [enabledLevels, setEnabledLevels] = useState<string[]>(['ORGANIZATION', 'DEPARTMENT', 'INDIVIDUAL']);
+  const [individualUnitSettings, setIndividualUnitSettings] = useState<Record<string, boolean>>({
+    'INDIVIDUAL': true // Default INDIVIDUAL level to be an Individual Unit
+  });
   const [customLevels, setCustomLevels] = useState<CustomLevel[]>([]);
-  const [newCustomLevel, setNewCustomLevel] = useState<CustomLevel>({ name: '', pluralName: '' });
+  const [newCustomLevel, setNewCustomLevel] = useState<CustomLevel>({ name: '', pluralName: '', isIndividualUnit: false });
 
   useEffect(() => {
     if (tenantId) {
@@ -156,13 +161,24 @@ export function OrganizationSetupWizard({
       setEnabledLevels([...enabledLevels, levelCode]);
     } else {
       setEnabledLevels(enabledLevels.filter(code => code !== levelCode));
+      // Remove individual unit setting when level is disabled
+      const newSettings = { ...individualUnitSettings };
+      delete newSettings[levelCode];
+      setIndividualUnitSettings(newSettings);
     }
+  };
+
+  const handleIndividualUnitToggle = (levelCode: string, isIndividualUnit: boolean) => {
+    setIndividualUnitSettings(prev => ({
+      ...prev,
+      [levelCode]: isIndividualUnit
+    }));
   };
 
   const addCustomLevel = () => {
     if (newCustomLevel.name && newCustomLevel.pluralName) {
       setCustomLevels([...customLevels, newCustomLevel]);
-      setNewCustomLevel({ name: '', pluralName: '' });
+      setNewCustomLevel({ name: '', pluralName: '', isIndividualUnit: false });
     }
   };
 
@@ -178,6 +194,7 @@ export function OrganizationSetupWizard({
       await apiClient.post(`/tenants/${tenantId}/org-structure/initialize`, {
         organizationName,
         enabledLevels,
+        individualUnitSettings,
         customLevels
       });
 
@@ -307,23 +324,49 @@ export function OrganizationSetupWizard({
                 
                 <div className="space-y-3">
                   {standardLevels.map(level => (
-                    <div key={level.code} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <Checkbox
-                          checked={enabledLevels.includes(level.code)}
-                          onCheckedChange={(checked) => handleLevelToggle(level.code, checked as boolean)}
-                          disabled={level.required}
-                        />
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">{level.name}</span>
-                            {level.required && (
-                              <Badge variant="secondary" size="sm">Required</Badge>
-                            )}
+                    <div key={level.code} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <Checkbox
+                            checked={enabledLevels.includes(level.code)}
+                            onCheckedChange={(checked) => handleLevelToggle(level.code, checked as boolean)}
+                            disabled={level.required}
+                          />
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium">{level.name}</span>
+                              {level.required && (
+                                <Badge variant="secondary" size="sm">Required</Badge>
+                              )}
+                            </div>
+                            <span className="text-sm text-gray-600">{level.pluralName}</span>
                           </div>
-                          <span className="text-sm text-gray-600">{level.pluralName}</span>
                         </div>
                       </div>
+                      
+                      {/* Individual Unit Toggle - Only show for enabled levels */}
+                      {enabledLevels.includes(level.code) && (
+                        <div className="ml-6 pl-3 border-l-2 border-gray-200">
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={individualUnitSettings[level.code] || false}
+                              onChange={(e) => handleIndividualUnitToggle(level.code, e.target.checked)}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                            <span className={`text-sm ${
+                              individualUnitSettings[level.code] ? 'text-blue-700 font-medium' : 'text-gray-600'
+                            }`}>
+                              Individual Unit Level
+                            </span>
+                          </label>
+                          {individualUnitSettings[level.code] && (
+                            <p className="text-xs text-blue-600 mt-1 ml-6">
+                              👤 This level represents individual contributors
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -356,18 +399,27 @@ export function OrganizationSetupWizard({
                 {customLevels.length > 0 && (
                   <div className="space-y-3 mb-6">
                     {customLevels.map((level, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <span className="font-medium">{level.name}</span>
-                          <span className="text-sm text-gray-600 ml-2">({level.pluralName})</span>
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <span className="font-medium">{level.name}</span>
+                            <span className="text-sm text-gray-600 ml-2">({level.pluralName})</span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeCustomLevel(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeCustomLevel(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        {level.isIndividualUnit && (
+                          <div className="flex items-center space-x-2 text-blue-700">
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                              👤 Individual Unit
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -405,6 +457,30 @@ export function OrganizationSetupWizard({
                       />
                     </div>
                   </div>
+                  
+                  {/* Individual Unit Toggle for Custom Level */}
+                  <div className="mb-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newCustomLevel.isIndividualUnit || false}
+                        onChange={(e) => setNewCustomLevel({
+                          ...newCustomLevel,
+                          isIndividualUnit: e.target.checked
+                        })}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <span className={`text-sm ${
+                        newCustomLevel.isIndividualUnit ? 'text-blue-700 font-medium' : 'text-gray-600'
+                      }`}>
+                        Individual Unit Level
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 ml-6">
+                      Check if this level represents individual contributors
+                    </p>
+                  </div>
+                  
                   <Button
                     variant="outline"
                     onClick={addCustomLevel}
@@ -445,13 +521,21 @@ export function OrganizationSetupWizard({
                   
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <h4 className="font-medium text-gray-900 mb-2">Enabled Levels</h4>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-2">
                       {enabledLevels.map(levelCode => {
                         const level = standardLevels.find(l => l.code === levelCode);
+                        const isIndividualUnit = individualUnitSettings[levelCode];
                         return level ? (
-                          <Badge key={levelCode} variant="info">
-                            {level.name}
-                          </Badge>
+                          <div key={levelCode} className="flex items-center justify-between">
+                            <Badge variant="info">
+                              {level.name}
+                            </Badge>
+                            {isIndividualUnit && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                👤 Individual Unit
+                              </span>
+                            )}
+                          </div>
                         ) : null;
                       })}
                     </div>
@@ -460,11 +544,18 @@ export function OrganizationSetupWizard({
                   {customLevels.length > 0 && (
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <h4 className="font-medium text-gray-900 mb-2">Custom Levels</h4>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="space-y-2">
                         {customLevels.map((level, index) => (
-                          <Badge key={index} variant="secondary">
-                            {level.name}
-                          </Badge>
+                          <div key={index} className="flex items-center justify-between">
+                            <Badge variant="secondary">
+                              {level.name}
+                            </Badge>
+                            {level.isIndividualUnit && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                👤 Individual Unit
+                              </span>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>
