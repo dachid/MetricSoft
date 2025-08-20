@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Calendar, ChevronDown, Plus, CheckCircle, Clock, Lock } from 'lucide-react';
+import { apiClient } from '@/lib/apiClient';
 
 interface FiscalYear {
   id: string;
@@ -61,23 +62,10 @@ const FiscalYearSelector = forwardRef<FiscalYearSelectorRef, FiscalYearSelectorP
     
     setLoading(true);
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setFiscalYears(data);
-        return data; // Return the data for immediate use
-      } else {
-        console.error('Failed to fetch fiscal years:', response.status);
-        setFiscalYears([]);
-        return [];
-      }
+      const response = await apiClient.get<FiscalYear[]>(`/tenants/${tenantId}/fiscal-years`);
+      const data = response.data || [];
+      setFiscalYears(data);
+      return data; // Return the data for immediate use
     } catch (error) {
       console.error('Error fetching fiscal years:', error);
       setFiscalYears([]);
@@ -124,46 +112,27 @@ const FiscalYearSelector = forwardRef<FiscalYearSelectorRef, FiscalYearSelectorP
     event.stopPropagation(); // Prevent dropdown item selection
     
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(
-        `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYear.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ isCurrent: true })
-        }
+      await apiClient.put(
+        `/tenants/${tenantId}/fiscal-years/${fiscalYear.id}`,
+        { isCurrent: true }
       );
 
-      if (response.ok) {
-        // Refresh fiscal years list
-        const token = localStorage.getItem('metricsoft_auth_token');
-        const refreshResponse = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (refreshResponse.ok) {
-          const data = await refreshResponse.json();
-          setFiscalYears(data);
+      // Refresh fiscal years list
+      const response = await apiClient.get<FiscalYear[]>(`/tenants/${tenantId}/fiscal-years`);
+      const data = response.data || [];
+      setFiscalYears(data);
           
-          // Update selected fiscal year if it was the one we just set as current
-          if (selectedFiscalYear?.id === fiscalYear.id) {
-            const updatedFy = data.find((fy: FiscalYear) => fy.id === fiscalYear.id);
-            if (updatedFy) {
-              onFiscalYearChange(updatedFy);
-            }
-          }
-          
-          // Call callback if provided
-          if (onCurrentChanged) {
-            onCurrentChanged();
-          }
+      // Update selected fiscal year if it was the one we just set as current
+      if (selectedFiscalYear?.id === fiscalYear.id) {
+        const updatedFy = data.find((fy: FiscalYear) => fy.id === fiscalYear.id);
+        if (updatedFy) {
+          onFiscalYearChange(updatedFy);
         }
+      }
+      
+      // Call callback if provided
+      if (onCurrentChanged) {
+        onCurrentChanged();
       }
     } catch (error) {
       console.error('Error setting fiscal year as current:', error);

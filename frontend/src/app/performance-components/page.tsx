@@ -6,6 +6,7 @@ import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { PerformanceComponentsManager } from '@/components/features/PerformanceComponentsManager';
 import { Building2, Calendar, AlertTriangle, ArrowRight, Target } from 'lucide-react';
+import { apiClient } from '@/lib/apiClient';
 
 interface FiscalYear {
   id: string;
@@ -48,19 +49,12 @@ function PerformanceComponentsContent() {
       if (!isSuperAdmin) return;
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          setAvailableTenants(result.data);
-          if (result.data.length > 0 && !selectedTenantId) {
-            setSelectedTenantId(result.data[0].id);
-          }
+        const response = await apiClient.get('/admin/tenants');
+        console.log('Tenants API Response:', response);
+        const tenants = Array.isArray(response.data) ? response.data : [];
+        setAvailableTenants(tenants);
+        if (tenants.length > 0 && !selectedTenantId) {
+          setSelectedTenantId(tenants[0].id);
         }
       } catch (error) {
         console.error('Error loading tenants:', error);
@@ -91,30 +85,19 @@ function PerformanceComponentsContent() {
       }
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-
         // Load fiscal years
-        const fyResponse = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/fiscal-years`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (fyResponse.ok) {
-          const fyResult = await fyResponse.json();
-          console.log('Fiscal Years API Response:', fyResult);
-          setFiscalYears(fyResult || []);
-          // Auto-select current fiscal year, or first one if no current
-          const currentFY = fyResult?.find((fy: FiscalYear) => fy.isCurrent);
-          if (currentFY) {
-            console.log('Auto-selecting current FY:', currentFY);
-            setSelectedFiscalYear(currentFY);
-          } else if (fyResult && fyResult.length > 0) {
-            console.log('No current FY found, auto-selecting first FY:', fyResult[0]);
-            setSelectedFiscalYear(fyResult[0]);
-          }
-        } else {
-          console.error('Failed to load fiscal years:', fyResponse.status);
+        const fyResponse = await apiClient.get(`/tenants/${tenantIdToUse}/fiscal-years`);
+        console.log('Fiscal Years API Response:', fyResponse);
+        const fyResult = Array.isArray(fyResponse.data) ? fyResponse.data : [];
+        setFiscalYears(fyResult);
+        // Auto-select current fiscal year, or first one if no current
+        const currentFY = fyResult.find((fy: FiscalYear) => fy.isCurrent);
+        if (currentFY) {
+          console.log('Auto-selecting current FY:', currentFY);
+          setSelectedFiscalYear(currentFY);
+        } else if (fyResult.length > 0) {
+          console.log('No current FY found, auto-selecting first FY:', fyResult[0]);
+          setSelectedFiscalYear(fyResult[0]);
         }
       } catch (error) {
         console.error('Error checking prerequisites:', error);

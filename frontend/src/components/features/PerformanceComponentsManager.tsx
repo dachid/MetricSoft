@@ -6,6 +6,7 @@ import { TerminologyEditor } from './TerminologyEditor'
 import { ComponentBuilder } from './ComponentBuilder'
 import { CascadeVisualizer } from './CascadeVisualizer'
 import { ReadOnlyPerformanceComponents } from './ReadOnlyPerformanceComponents'
+import { apiClient } from '../../lib/apiClient'
 
 /**
  * Performance Components Manager - Phase 2
@@ -100,166 +101,100 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
 
   const checkOrgStructureConfirmation = async () => {
     try {
-      const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const fiscalYears = await response.json()
-        const currentFY = fiscalYears.find((fy: any) => fy.id === fiscalYearId)
+      const response = await apiClient.get(`/tenants/${tenantId}/fiscal-years`);
+      const fiscalYears = Array.isArray(response.data) ? response.data : [];
+      if (fiscalYears.length > 0) {
+        const currentFY = fiscalYears.find((fy: any) => fy.id === fiscalYearId);
         
         if (currentFY) {
-          const hasOrgConfirmation = currentFY.confirmations?.some((c: any) => c.confirmationType === 'org_structure')
-          console.log('PerformanceComponentsManager: Organization structure confirmed:', hasOrgConfirmation)
-          setIsOrgConfirmed(hasOrgConfirmation || false)
+          const hasOrgConfirmation = currentFY.confirmations?.some((c: any) => c.confirmationType === 'org_structure');
+          console.log('PerformanceComponentsManager: Organization structure confirmed:', hasOrgConfirmation);
+          setIsOrgConfirmed(hasOrgConfirmation || false);
         }
       }
     } catch (error) {
-      console.error('PerformanceComponentsManager: Error checking org structure confirmation:', error)
+      console.error('PerformanceComponentsManager: Error checking org structure confirmation:', error);
     }
   }
 
   const loadOrgLevels = async () => {
     try {
-      setIsLoading(true)
-      const token = localStorage.getItem('metricsoft_auth_token')
-      const url = `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`
-      console.log('PerformanceComponentsManager: Fetching org levels from:', url)
-      console.log('TenantId:', tenantId)
-      console.log('FiscalYearId:', fiscalYearId)
+      setIsLoading(true);
+      const url = `/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`;
+      console.log('PerformanceComponentsManager: Fetching org levels from:', url);
+      console.log('TenantId:', tenantId);
+      console.log('FiscalYearId:', fiscalYearId);
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      console.log('PerformanceComponentsManager: Response status:', response.status)
+      const response = await apiClient.get(url);
+      console.log('PerformanceComponentsManager: Response:', response);
       
-      if (response.ok) {
-        const data = await response.json()
-        // The API returns { levelDefinitions: [...] }
-        console.log('PerformanceComponentsManager: Raw API response:', data)
-        console.log('PerformanceComponentsManager: levelDefinitions array:', data.levelDefinitions)
+      const data = response.data as any;
+      // The API returns { levelDefinitions: [...] }
+      console.log('PerformanceComponentsManager: Raw API response:', data);
+      console.log('PerformanceComponentsManager: levelDefinitions array:', data.levelDefinitions);
         
-        // Filter to only enabled levels and sort by hierarchy
-        const enabledLevels = (data.levelDefinitions || [])
-          .filter((level: any) => level.isEnabled)
-          .sort((a: any, b: any) => a.hierarchyLevel - b.hierarchyLevel)
-        
-        console.log('PerformanceComponentsManager: Filtered enabled levels:', enabledLevels)
-        setOrgLevels(enabledLevels)
-        console.log('PerformanceComponentsManager: Loaded enabled organizational levels:', enabledLevels)
-      } else {
-        const errorText = await response.text()
-        console.error('PerformanceComponentsManager: API error:', response.status, errorText)
-        console.error('PerformanceComponentsManager: Failed URL:', url)
-        
-        // If fiscal year specific endpoint fails, try the tenant-wide endpoint as fallback
-        if (response.status === 404) {
-          console.log('PerformanceComponentsManager: Trying tenant-wide level definitions as fallback...')
-          const fallbackUrl = `http://localhost:5000/api/tenants/${tenantId}/level-definitions`
-          const fallbackResponse = await fetch(fallbackUrl, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-          
-          if (fallbackResponse.ok) {
-            const fallbackData = await fallbackResponse.json()
-            console.log('PerformanceComponentsManager: Fallback API response:', fallbackData)
-            
-            const enabledLevels = (fallbackData.levelDefinitions || [])
-              .filter((level: any) => level.isEnabled)
-              .sort((a: any, b: any) => a.hierarchyLevel - b.hierarchyLevel)
-            
-            console.log('PerformanceComponentsManager: Fallback enabled levels:', enabledLevels)
-            setOrgLevels(enabledLevels)
-          } else {
-            console.error('PerformanceComponentsManager: Fallback also failed:', fallbackResponse.status)
-          }
-        }
-      }
+      // Filter to only enabled levels and sort by hierarchy
+      const enabledLevels = (data.levelDefinitions || [])
+        .filter((level: any) => level.isEnabled)
+        .sort((a: any, b: any) => a.hierarchyLevel - b.hierarchyLevel);
+      
+      console.log('PerformanceComponentsManager: Filtered enabled levels:', enabledLevels);
+      setOrgLevels(enabledLevels);
+      console.log('PerformanceComponentsManager: Loaded enabled organizational levels:', enabledLevels);
     } catch (error) {
-      console.error('PerformanceComponentsManager: Error loading org levels:', error)
+      console.error('PerformanceComponentsManager: Error loading org levels:', error);
     } finally {
-      console.log('PerformanceComponentsManager: Setting isLoading to false')
-      setIsLoading(false)
+      console.log('PerformanceComponentsManager: Setting isLoading to false');
+      setIsLoading(false);
     }
   }
 
   const loadPerformanceComponents = async () => {
     try {
       // Reset confirmation state first
-      setIsConfirmed(false)
-      setConfirmationInfo(null)
+      setIsConfirmed(false);
+      setConfirmationInfo(null);
       
-      const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('Loaded performance components:', data)
+      const response = await apiClient.get(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`);
+      const data = response.data as any;
+      console.log('Loaded performance components:', data);
         
-        // Check if components are confirmed/locked
-        if (data.isConfirmed) {
-          setIsConfirmed(true)
-          setConfirmationInfo(data.confirmation)
-        }
-        
-        if (data.componentsByLevel) {
-          // Transform the data structure to match what ComponentBuilder expects
-          const transformedComponents: Record<string, any> = {}
-          Object.entries(data.componentsByLevel).forEach(([levelId, levelData]: [string, any]) => {
-            transformedComponents[levelId] = levelData.components || []
-          })
-          setComponentsByLevel(transformedComponents)
-        }
-        if (data.cascadeRelationships) {
-          setCascadeRelationships(data.cascadeRelationships)
-        }
-      } else if (response.status === 404) {
-        console.log('No existing performance components found - will initialize defaults')
-        // Reset components state for new fiscal year
-        setComponentsByLevel({})
-        setCascadeRelationships([])
+      // Check if components are confirmed/locked
+      if (data.isConfirmed) {
+        setIsConfirmed(true);
+        setConfirmationInfo(data.confirmation);
+      }
+      
+      if (data.componentsByLevel) {
+        // Transform the data structure to match what ComponentBuilder expects
+        const transformedComponents: Record<string, any> = {};
+        Object.entries(data.componentsByLevel).forEach(([levelId, levelData]: [string, any]) => {
+          transformedComponents[levelId] = levelData.components || [];
+        });
+        setComponentsByLevel(transformedComponents);
+      }
+      if (data.cascadeRelationships) {
+        setCascadeRelationships(data.cascadeRelationships);
       }
     } catch (error) {
-      console.error('Error loading performance components:', error)
+      console.error('Error loading performance components:', error);
+      // Reset components state for new fiscal year
+      setComponentsByLevel({});
+      setCascadeRelationships([]);
     }
   }
 
   const loadTenantSettings = async () => {
     try {
-      const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/settings`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('Loaded tenant settings:', data)
-        
-        if (data.data?.terminology) {
-          setTerminology(data.data.terminology)
-        }
+      const response = await apiClient.get(`/tenants/${tenantId}/settings`);
+      const data = response.data as any;
+      console.log('Loaded tenant settings:', data);
+      
+      if (data.data?.terminology) {
+        setTerminology(data.data.terminology);
       }
     } catch (error) {
-      console.error('Error loading tenant settings:', error)
+      console.error('Error loading tenant settings:', error);
     }
   }
 
@@ -298,147 +233,92 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
   
   const handleConfirmOrganization = async () => {
     try {
-      setIsConfirming(true)
-      const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/organization/confirm`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      setIsConfirming(true);
+      const response = await apiClient.post(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/organization/confirm`);
 
-      if (response.ok) {
-        setIsOrgConfirmed(true)
-        setShowOrgConfirmDialog(false)
-        // Now show performance components confirmation
-        setShowPerfConfirmDialog(true)
-      } else {
-        const errorData = await response.json()
-        alert(`Failed to confirm organization: ${errorData.error}`)
-      }
+      setIsOrgConfirmed(true);
+      setShowOrgConfirmDialog(false);
+      // Now show performance components confirmation
+      setShowPerfConfirmDialog(true);
     } catch (error) {
-      console.error('Error confirming organization:', error)
-      alert(`Error confirming organization: ${error instanceof Error ? error.message : String(error)}`)
+      console.error('Error confirming organization:', error);
+      alert(`Error confirming organization: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      setIsConfirming(false)
+      setIsConfirming(false);
     }
   }
   
   const handleSaveAndConfirmComponents = async () => {
     try {
-      setIsSaving(true)
-      const token = localStorage.getItem('metricsoft_auth_token')
+      setIsSaving(true);
       
-      console.log('=== SAVE COMPONENTS DEBUG ===')
-      console.log('Raw componentsByLevel state:', componentsByLevel)
-      console.log('Raw cascadeRelationships state:', cascadeRelationships)
+      console.log('=== SAVE COMPONENTS DEBUG ===');
+      console.log('Raw componentsByLevel state:', componentsByLevel);
+      console.log('Raw cascadeRelationships state:', cascadeRelationships);
       
       // Transform componentsByLevel to the expected format for the API
-      const transformedComponentsByLevel: Record<string, any> = {}
+      const transformedComponentsByLevel: Record<string, any> = {};
       
       Object.entries(componentsByLevel).forEach(([levelId, levelData]) => {
-        console.log(`Processing level ${levelId}:`, levelData)
+        console.log(`Processing level ${levelId}:`, levelData);
         transformedComponentsByLevel[levelId] = {
-          components: Array.isArray(levelData) ? levelData : levelData.components || []
-        }
-        console.log(`Transformed level ${levelId}:`, transformedComponentsByLevel[levelId])
-      })
+          components: Array.isArray(levelData) ? levelData : (levelData as any).components || []
+        };
+        console.log(`Transformed level ${levelId}:`, transformedComponentsByLevel[levelId]);
+      });
       
       const savePayload = {
         componentsByLevel: transformedComponentsByLevel,
         cascadeRelationships
-      }
+      };
       
-      console.log('Final save payload:', JSON.stringify(savePayload, null, 2))
+      console.log('Final save payload:', JSON.stringify(savePayload, null, 2));
       
       // Save terminology to tenant settings first
       try {
-        const settingsResponse = await fetch(`http://localhost:5000/api/tenants/${tenantId}/settings`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            terminology: terminology
-          })
-        })
-        
-        if (settingsResponse.ok) {
-          console.log('Terminology saved successfully')
-        } else {
-          const errorText = await settingsResponse.text()
-          console.warn('Failed to save terminology:', errorText)
-        }
+        const settingsResponse = await apiClient.put(`/tenants/${tenantId}/settings`, {
+          terminology: terminology
+        });
+        console.log('Terminology saved successfully');
       } catch (error) {
-        console.warn('Error saving terminology:', error)
+        console.warn('Error saving terminology:', error);
       }
       
       // Save performance components
-      console.log('Sending PUT request to:', `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`)
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(savePayload)
-      })
+      console.log('Sending PUT request to performance components endpoint');
+      const response = await apiClient.put(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`, savePayload);
 
-      console.log('Save response status:', response.status)
-      const responseText = await response.text()
-      console.log('Save response body:', responseText)
-
-      if (response.ok) {
-        const result = JSON.parse(responseText)
-        console.log('Components save successful:', result)
+      console.log('Save response:', response);
+      const result = response.data;
+      console.log('Components save successful:', result);
+      
+      // Close the dialog and show confirmation success
+      setShowPerfConfirmDialog(false);
         
-        // Close the dialog and show confirmation success
-        setShowPerfConfirmDialog(false)
+      // Auto-confirm the configuration after successful save
+      await handleConfirmConfiguration();
         
-        // Auto-confirm the configuration after successful save
-        await handleConfirmConfiguration()
-        
-      } else {
-        console.error('Components save failed:', responseText)
-        alert(`Failed to save components: ${responseText}`)
-        throw new Error(responseText || 'Failed to save components')
-      }
     } catch (error) {
-      console.error('Error saving components:', error)
-      alert(`Error saving components: ${error instanceof Error ? error.message : String(error)}`)
+      console.error('Error saving components:', error);
+      alert(`Error saving components: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
   }
 
   const handleConfirmConfiguration = async () => {
     try {
-      const token = localStorage.getItem('metricsoft_auth_token')
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      const response = await apiClient.post(`/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`);
 
-      if (response.ok) {
-        console.log('Configuration confirmed successfully')
-        alert('Performance components configuration completed and locked!')
-        
-        // Reload to show the read-only view
-        await loadPerformanceComponents()
-        onComplete?.()
-      } else {
-        const errorText = await response.text()
-        console.error('Failed to confirm configuration:', errorText)
-        alert('Components saved but failed to lock configuration. Please contact support.')
-      }
+      console.log('Configuration confirmed successfully');
+      alert('Performance components configuration completed and locked!');
+      
+      // Reload to show the read-only view
+      await loadPerformanceComponents();
+      onComplete?.();
     } catch (error) {
-      console.error('Error confirming configuration:', error)
-      alert('Components saved but failed to lock configuration. Please contact support.')
+      console.error('Error confirming configuration:', error);
+      alert('Components saved but failed to lock configuration. Please contact support.');
     }
   }
 

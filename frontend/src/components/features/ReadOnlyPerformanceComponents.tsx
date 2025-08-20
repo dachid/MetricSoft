@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/auth-context'
 import { Card } from '../ui'
 import { CascadeVisualizer } from './CascadeVisualizer'
+import { apiClient } from '../../lib/apiClient'
 
 /**
  * Read-Only Performance Components Display
@@ -57,74 +58,46 @@ export function ReadOnlyPerformanceComponents({
   const loadData = async () => {
     try {
       setIsLoading(true)
-      const token = localStorage.getItem('metricsoft_auth_token')
       
       // Load organizational levels
-      const orgLevelsResponse = await fetch(
-        `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const orgLevelsResponse = await apiClient.get(
+        `/tenants/${tenantId}/fiscal-years/${fiscalYearId}/level-definitions`
+      );
 
-      if (orgLevelsResponse.ok) {
-        const orgLevelsData = await orgLevelsResponse.json()
-        const enabledLevels = (orgLevelsData.levelDefinitions || [])
-          .filter((level: any) => level.isEnabled)
-          .sort((a: any, b: any) => a.hierarchyLevel - b.hierarchyLevel)
-        setOrgLevels(enabledLevels)
-      }
+      const orgLevelsData = orgLevelsResponse.data as any;
+      const enabledLevels = (orgLevelsData.levelDefinitions || [])
+        .filter((level: any) => level.isEnabled)
+        .sort((a: any, b: any) => a.hierarchyLevel - b.hierarchyLevel);
+      setOrgLevels(enabledLevels);
 
       // Load performance components
-      const componentsResponse = await fetch(
-        `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const componentsResponse = await apiClient.get(
+        `/tenants/${tenantId}/fiscal-years/${fiscalYearId}/performance-components`
+      );
 
-      if (componentsResponse.ok) {
-        const componentsData = await componentsResponse.json()
-        if (componentsData.componentsByLevel) {
-          const transformedComponents: Record<string, any> = {}
-          Object.entries(componentsData.componentsByLevel).forEach(([levelId, levelData]: [string, any]) => {
-            transformedComponents[levelId] = levelData.components || []
-          })
-          setComponentsByLevel(transformedComponents)
-        }
-        if (componentsData.cascadeRelationships) {
-          setCascadeRelationships(componentsData.cascadeRelationships)
-        }
+      const componentsData = componentsResponse.data as any;
+      if (componentsData.componentsByLevel) {
+        const transformedComponents: Record<string, any> = {};
+        Object.entries(componentsData.componentsByLevel).forEach(([levelId, levelData]: [string, any]) => {
+          transformedComponents[levelId] = levelData.components || [];
+        });
+        setComponentsByLevel(transformedComponents);
+      }
+      if (componentsData.cascadeRelationships) {
+        setCascadeRelationships(componentsData.cascadeRelationships);
       }
 
       // Load tenant settings for terminology
-      const settingsResponse = await fetch(
-        `http://localhost:5000/api/tenants/${tenantId}/settings`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
-
-      if (settingsResponse.ok) {
-        const settingsData = await settingsResponse.json()
-        if (settingsData.data?.terminology) {
-          setTerminology(settingsData.data.terminology)
-        }
+      const settingsResponse = await apiClient.get(`/tenants/${tenantId}/settings`);
+      const settingsData = settingsResponse.data as any;
+      if (settingsData.data?.terminology) {
+        setTerminology(settingsData.data.terminology);
       }
 
     } catch (error) {
-      console.error('Error loading performance components:', error)
+      console.error('Error loading performance components:', error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
