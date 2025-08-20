@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ErrorDisplay } from '@/components/ui/ErrorDisplay';
 import { DatabaseStatus } from '@/components/ui/DatabaseStatus';
 import { useApi } from '@/lib/apiClient';
+import { extractErrorMessage } from '@/lib/errorUtils';
 
 export default function ErrorHandlingDemo() {
   const [authError, setAuthError] = useState<any>(null);
@@ -18,7 +19,7 @@ export default function ErrorHandlingDemo() {
     const response = await api.get('/health');
     
     if (!response.success) {
-      setDbError(response.error);
+      setDbError(extractErrorMessage(response, 'Database connection failed'));
     }
     
     setLoading(false);
@@ -32,7 +33,7 @@ export default function ErrorHandlingDemo() {
     const response = await api.get('/auth/me');
     
     if (!response.success) {
-      setAuthError(response.error);
+      setAuthError(extractErrorMessage(response, 'Authentication failed'));
     }
     
     setLoading(false);

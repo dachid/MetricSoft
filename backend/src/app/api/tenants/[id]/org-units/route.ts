@@ -1,45 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authMiddleware } from '@/lib/middleware/auth';
-import { ApiErrorHandler, AuthenticationError, AuthorizationError, ValidationError } from '@/lib/errors';
+import { createApiRoute, AuthenticationError, AuthorizationError, ValidationError, DatabaseError, NotFoundError } from '@/lib/middleware';
 
 // GET /api/tenants/[id]/org-units - Get all organizational units for a tenant
-export async function GET(
+export const GET = createApiRoute(async (
   request: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
+  const authResult = await authMiddleware(request);
+  if (!authResult.success) {
+    throw new AuthenticationError(authResult.error || 'Authentication required');
+  }
+
+  const tenantId = params.id;
+  
+  // Verify user has access to this tenant
+  // Super Admins can access any tenant, Organization Admins only their own tenant
+  const isSuperAdmin = authResult.user?.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
+  if (!isSuperAdmin && authResult.user?.tenantId !== tenantId) {
+    throw new AuthorizationError('Access denied to this tenant');
+  }
+
+  const { searchParams } = new URL(request.url);
+  const levelCode = searchParams.get('level');
+  const parentId = searchParams.get('parent');
+  const includeInactive = searchParams.get('includeInactive') === 'true';
+  const fiscalYearId = searchParams.get('fiscalYearId');
+
+  // Build where clause based on filters
+  const whereClause: any = {
+    tenantId,
+    ...(levelCode && { 
+      levelDefinition: { 
+        code: levelCode 
+      } 
+    }),
+    ...(parentId && { parentId }),
+    ...(fiscalYearId && { fiscalYearId }),
+    ...(!includeInactive && { isActive: true })
+  };
+
   try {
-    const authResult = await authMiddleware(request);
-    if (!authResult.success) {
-      throw new AuthenticationError(authResult.error || 'Authentication required');
-    }
-
-    const tenantId = params.id;
-    
-    // Verify user has access to this tenant
-    // Super Admins can access any tenant, Organization Admins only their own tenant
-    const isSuperAdmin = authResult.user?.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
-    if (!isSuperAdmin && authResult.user?.tenantId !== tenantId) {
-      throw new AuthorizationError('Access denied to this tenant');
-    }
-
-    const { searchParams } = new URL(request.url);
-    const levelCode = searchParams.get('level');
-    const parentId = searchParams.get('parent');
-    const includeInactive = searchParams.get('includeInactive') === 'true';
-
-    // Build where clause based on filters
-    const whereClause: any = {
-      tenantId,
-      ...(levelCode && { 
-        levelDefinition: { 
-          code: levelCode 
-        } 
-      }),
-      ...(parentId && { parentId }),
-      ...(!includeInactive && { isActive: true })
-    };
-
     // Get org units with related data
     const orgUnits = await (prisma as any).orgUnit.findMany({
       where: whereClause,
@@ -113,7 +115,7 @@ export async function GET(
       ]
     });
 
-    return NextResponse.json({
+    return {
       success: true,
       data: {
         orgUnits,
@@ -122,21 +124,40 @@ export async function GET(
           filters: {
             levelCode,
             parentId,
-            includeInactive
+            includeInactive,
+            fiscalYearId
           }
         }
       }
-    });
-  } catch (error) {
-    return ApiErrorHandler.handle(error);
+    };
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      throw new DatabaseError('Database constraint violation', error.message);
+    } else if (error.code?.startsWith('P')) {
+      throw new DatabaseError('Database operation failed', error.message);
+    }
+    
+    throw new DatabaseError(
+      'Failed to fetch organizational units',
+      error.message,
+      { 
+        metadata: { 
+          tenantId, 
+          levelCode, 
+          parentId, 
+          fiscalYearId,
+          includeInactive 
+        }
+      }
+    );
   }
-}
+})
 
 // POST /api/tenants/[id]/org-units - Create new organizational unit
-export async function POST(
+export const POST = createApiRoute(async (
   request: NextRequest,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const authResult = await authMiddleware(request);
     if (!authResult.success) {
@@ -338,7 +359,16 @@ export async function POST(
       message: `${levelDef.name} "${name}" created successfully`,
       data: newOrgUnit
     });
-  } catch (error) {
-    return ApiErrorHandler.handle(error);
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      throw new ValidationError('Duplicate organizational unit', `An organizational unit with code "${error.meta?.target}" already exists`);
+    } else if (error.code === 'P2003') {
+      throw new ValidationError('Invalid reference', 'Referenced level definition or parent unit does not exist');
+    } else if (error.code?.startsWith('P')) {
+      throw new DatabaseError('Database operation failed', error.message);
+    }
+    
+    // Re-throw if it's already one of our custom errors
+    throw error;
   }
-}
+})

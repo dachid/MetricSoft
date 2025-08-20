@@ -761,41 +761,9 @@ export default function OrganizationalUnitsPage() {
 
   const getFilteredLevelDefinitions = () => {
     // Only show enabled levels (same logic as "Active Organizational Levels" in organizational structure)
-    const enabledLevels = levelDefinitions.filter(level => 
+    return levelDefinitions.filter(level => 
       !level.isIndividualUnit && level.isEnabled === true
     )
-    
-    // Check if an organization unit already exists
-    const organizationExists = orgUnits.some(unit => 
-      unit.levelDefinition.code === 'ORGANIZATION'
-    )
-    
-    // If organization exists, exclude the organization level from available options
-    if (organizationExists) {
-      return enabledLevels.filter(level => level.code !== 'ORGANIZATION')
-    }
-    
-    return enabledLevels
-  }
-
-  const getFilteredLevelDefinitionsForEdit = () => {
-    // For edit form, show all enabled levels
-    const enabledLevels = levelDefinitions.filter(level => 
-      !level.isIndividualUnit && level.isEnabled === true
-    )
-    
-    // Check if an organization unit already exists (excluding the current unit being edited)
-    const organizationExists = orgUnits.some(unit => 
-      unit.levelDefinition.code === 'ORGANIZATION' && 
-      unit.id !== editingUnit?.id // Exclude the current unit being edited
-    )
-    
-    // If organization exists (and we're not editing it), exclude the organization level
-    if (organizationExists) {
-      return enabledLevels.filter(level => level.code !== 'ORGANIZATION')
-    }
-    
-    return enabledLevels
   }
 
   const isOrganizationLevel = () => {
@@ -1013,7 +981,7 @@ export default function OrganizationalUnitsPage() {
                     >
                       <option value="">
                         {getFilteredLevelDefinitions().length === 0 
-                          ? "No additional organizational levels available" 
+                          ? "No confirmed organizational levels available" 
                           : "Select unit type..."
                         }
                       </option>
@@ -1026,13 +994,6 @@ export default function OrganizationalUnitsPage() {
                     {getFilteredLevelDefinitions().length === 0 && (
                       <p className="text-sm text-gray-500 mt-1">
                         Please confirm the organizational structure for this fiscal year first.
-                      </p>
-                    )}
-                    {/* Show info when organization type is filtered out */}
-                    {levelDefinitions.some(l => l.code === 'ORGANIZATION' && l.isEnabled) && 
-                     orgUnits.some(unit => unit.levelDefinition.code === 'ORGANIZATION') && (
-                      <p className="text-sm text-blue-600 mt-1">
-                        ℹ️ Organization level not shown - only one organization can be created per tenant.
                       </p>
                     )}
                   </div>

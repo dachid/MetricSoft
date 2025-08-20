@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/apiClient';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { HierarchyConfiguration } from '@/components/features/HierarchyConfiguration';
@@ -88,30 +89,21 @@ function OrganizationalStructureContent() {
         return;
       }
       
+      // Prevent multiple simultaneous calls
+      if (loading) {
+        console.log('🔍 Already loading, skipping tenant loading');
+        return;
+      }
+      
       console.log('🔍 Loading tenants for super admin...');
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        console.log('🔍 Token exists:', !!token);
-        
-        const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        console.log('🔍 Tenants API response status:', response.status);
-        
-        if (response.ok) {
-          const result = await response.json();
-          console.log('🔍 Tenants API result:', result);
-          setAvailableTenants(result.data || []);
-          if ((result.data || []).length > 0 && !selectedTenantId) {
-            console.log('🔍 Auto-selecting first tenant:', (result.data || [])[0].id);
-            setSelectedTenantId((result.data || [])[0].id);
-          }
-        } else {
-          const errorText = await response.text();
-          console.error('🔍 Tenants API failed:', response.status, errorText);
+        const response = await apiClient.get('/admin/tenants');
+        console.log('🔍 Tenants API result:', response);
+        const tenants = Array.isArray(response.data) ? response.data : [];
+        setAvailableTenants(tenants);
+        if (tenants.length > 0 && !selectedTenantId) {
+          console.log('🔍 Auto-selecting first tenant:', tenants[0].id);
+          setSelectedTenantId(tenants[0].id);
         }
       } catch (error) {
         console.error('🔍 Error loading tenants:', error);
@@ -149,42 +141,26 @@ function OrganizationalStructureContent() {
       console.log('🔍 Using tenant ID:', tenantIdToUse);
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        console.log('🔍 Token exists for data loading:', !!token);
-
         // Load fiscal years
         console.log('🔍 Loading fiscal years...');
-        const fyResponse = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/fiscal-years`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const fyResponse = await apiClient.get(`/tenants/${tenantIdToUse}/fiscal-years`);
+        console.log('🔍 Fiscal years raw result:', fyResponse);
+        const fiscalYearsData = Array.isArray(fyResponse.data) ? fyResponse.data : [];
+        console.log('🔍 Processed fiscal years:', fiscalYearsData);
         
-        console.log('🔍 Fiscal years response status:', fyResponse.status);
-        
-        if (fyResponse.ok) {
-          const fyResult = await fyResponse.json();
-          console.log('🔍 Fiscal years raw result:', fyResult);
-          const fiscalYearsData = Array.isArray(fyResult) ? fyResult : (fyResult.data || []);
-          console.log('🔍 Processed fiscal years:', fiscalYearsData);
-          
-          setFiscalYears(fiscalYearsData);
-          // Auto-select current fiscal year
-          const currentFY = fiscalYearsData.find((fy: FiscalYear) => fy.isCurrent);
-          if (currentFY) {
-            console.log('🔍 Auto-selecting current FY:', currentFY);
-            setSelectedFiscalYear(currentFY);
-            await loadOrgUnits(tenantIdToUse, currentFY.id);
-          } else if (fiscalYearsData.length > 0) {
-            console.log('🔍 Auto-selecting first FY:', fiscalYearsData[0]);
-            setSelectedFiscalYear(fiscalYearsData[0]);
-            await loadOrgUnits(tenantIdToUse, fiscalYearsData[0].id);
-          } else {
-            console.log('🔍 No fiscal years found');
-          }
+        setFiscalYears(fiscalYearsData);
+        // Auto-select current fiscal year
+        const currentFY = fiscalYearsData.find((fy: FiscalYear) => fy.isCurrent);
+        if (currentFY) {
+          console.log('🔍 Auto-selecting current FY:', currentFY);
+          setSelectedFiscalYear(currentFY);
+          await loadOrgUnits(tenantIdToUse, currentFY.id);
+        } else if (fiscalYearsData.length > 0) {
+          console.log('🔍 Auto-selecting first FY:', fiscalYearsData[0]);
+          setSelectedFiscalYear(fiscalYearsData[0]);
+          await loadOrgUnits(tenantIdToUse, fiscalYearsData[0].id);
         } else {
-          const errorText = await fyResponse.text();
-          console.error('🔍 Fiscal years request failed:', fyResponse.status, errorText);
+          console.log('🔍 No fiscal years found');
         }
       } catch (error) {
         console.error('🔍 Error loading data:', error);
@@ -200,30 +176,13 @@ function OrganizationalStructureContent() {
   // Load organizational units for selected fiscal year
   const loadOrgUnits = async (tenantId: string, fiscalYearId: string) => {
     console.log('🔍 Loading org units:', { tenantId, fiscalYearId });
+
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const url = `http://localhost:5000/api/tenants/${tenantId}/org-units?fiscalYearId=${fiscalYearId}`;
-      console.log('🔍 Org units URL:', url);
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      console.log('🔍 Org units response status:', response.status);
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('🔍 Org units result:', result);
-        const orgUnitsData = result.data?.orgUnits || [];
-        console.log('🔍 Setting org units:', orgUnitsData);
-        setOrgUnits(orgUnitsData);
-      } else {
-        const errorText = await response.text();
-        console.error('🔍 Failed to load organizational units:', response.status, errorText);
-        setOrgUnits([]);
-      }
+      const response = await apiClient.get(`/tenants/${tenantId}/org-units?fiscalYearId=${fiscalYearId}`);
+      console.log('🔍 Org units result:', response);
+      const orgUnitsData = (response.data as any)?.orgUnits || [];
+      console.log('🔍 Setting org units:', orgUnitsData);
+      setOrgUnits(orgUnitsData);
     } catch (error) {
       console.error('🔍 Error loading organizational units:', error);
       setOrgUnits([]);
@@ -531,7 +490,7 @@ function OrganizationalStructureContent() {
 
 export default function OrganizationalStructurePage() {
   console.log('🔍 OrganizationalStructurePage component rendering');
-  console.log('🔍 Current pathname:', window.location.pathname);
+  
   return (
     <ProtectedRoute requiredRoles={['SUPER_ADMIN', 'ORGANIZATION_ADMIN']}>
       <DashboardLayout title="Organizational Structure" subtitle="Configure organizational levels and hierarchy">

@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/apiClient';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -54,72 +55,59 @@ export default function ProtectedRoute({
 
       console.log('🔍 ProtectedRoute - User found, checking access...', { requiredRoles, requiredPermissions });
 
-      try {
-        // Fetch user roles if we need to check permissions/roles
-        if (requiredPermissions.length > 0 || requiredRoles.length > 0) {
-          console.log('🔍 ProtectedRoute - Fetching user roles from API...');
-          const token = localStorage.getItem('metricsoft_auth_token');
-          const response = await fetch('http://localhost:5000/api/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          console.log('🔍 ProtectedRoute - API response status:', response.status);
-
-          if (response.ok) {
-            const userData = await response.json();
-            console.log('🔍 ProtectedRoute - User data from API:', userData);
-            const userRoles: UserRole[] = userData.data.roles || [];
+      // Fetch user roles if we need to check permissions/roles
+      if (requiredPermissions.length > 0 || requiredRoles.length > 0) {
+        console.log('🔍 ProtectedRoute - Fetching user roles from API...');
+        try {
+          const response = await apiClient.get('/auth/me');
+          console.log('🔍 ProtectedRoute - API response status: 200 (success)');
+          
+          const userData = response.data as any;
+          console.log('🔍 ProtectedRoute - User data from API:', userData);
+          const userRoles: UserRole[] = userData.roles || [];
+          
+          // Check if user has required roles
+          if (requiredRoles.length > 0) {
+            const hasRequiredRole = userRoles.some(userRole => 
+              requiredRoles.includes(userRole.role.code)
+            );
             
-            // Check if user has required roles
-            if (requiredRoles.length > 0) {
-              const hasRequiredRole = userRoles.some(userRole => 
-                requiredRoles.includes(userRole.role.code)
-              );
-              
-              console.log('🔍 ProtectedRoute - Role check:', { hasRequiredRole, userRoles: userRoles.map(r => r.role.code) });
-              
-              if (!hasRequiredRole) {
-                console.log('🔍 ProtectedRoute - No required role, redirecting to fallback');
-                router.push(fallbackUrl);
-                return;
-              }
+            console.log('🔍 ProtectedRoute - Role check:', { hasRequiredRole, userRoles: userRoles.map(r => r.role.code) });
+            
+            if (!hasRequiredRole) {
+              console.log('🔍 ProtectedRoute - No required role, redirecting to fallback');
+              router.push(fallbackUrl);
+              return;
             }
-
-            // Check if user has required permissions
-            if (requiredPermissions.length > 0) {
-              const userPermissions = userRoles.flatMap(userRole => userRole.role.permissions);
-              const hasAllPermissions = requiredPermissions.every(permission => 
-                userPermissions.includes('*') || userPermissions.includes(permission)
-              );
-              
-              console.log('🔍 ProtectedRoute - Permission check:', { hasAllPermissions, userPermissions });
-              
-              if (!hasAllPermissions) {
-                console.log('🔍 ProtectedRoute - No required permissions, redirecting to fallback');
-                router.push(fallbackUrl);
-                return;
-              }
-            }
-          } else {
-            console.log('🔍 ProtectedRoute - API call failed, redirecting to login');
-            router.push('/login');
-            return;
           }
-        } else {
-          console.log('🔍 ProtectedRoute - No role/permission checks required');
-        }
 
-        console.log('🔍 ProtectedRoute - Access granted!');
-        setHasAccess(true);
-      } catch (error) {
-        console.error('🔍 ProtectedRoute - Error checking access:', error);
-        router.push('/login');
-      } finally {
-        console.log('🔍 ProtectedRoute - Setting checkingAccess to false');
-        setCheckingAccess(false);
+          // Check if user has required permissions
+          if (requiredPermissions.length > 0) {
+            const userPermissions = userRoles.flatMap(userRole => userRole.role.permissions);
+            const hasAllPermissions = requiredPermissions.every(permission => 
+              userPermissions.includes('*') || userPermissions.includes(permission)
+            );
+            
+            console.log('🔍 ProtectedRoute - Permission check:', { hasAllPermissions, userPermissions });
+            
+            if (!hasAllPermissions) {
+              console.log('🔍 ProtectedRoute - No required permissions, redirecting to fallback');
+              router.push(fallbackUrl);
+              return;
+            }
+          }
+        } catch (error) {
+          console.log('🔍 ProtectedRoute - API call failed, redirecting to login');
+          router.push('/login');
+          return;
+        }
+      } else {
+        console.log('🔍 ProtectedRoute - No role/permission checks required');
       }
+
+      console.log('🔍 ProtectedRoute - Access granted!');
+      setHasAccess(true);
+      setCheckingAccess(false);
     };
 
     checkAccess();

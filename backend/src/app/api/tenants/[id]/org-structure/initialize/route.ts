@@ -92,13 +92,15 @@ export async function POST(
         }
       ];
 
-      // Create standard levels
+      // Create standard levels (only enabled ones)
       const createdLevels = [];
-      for (const level of standardLevels) {
+      const enabledStandardLevels = standardLevels.filter(level => level.isEnabled === true);
+      for (const level of enabledStandardLevels) {
         const created = await (tx as any).levelDefinition.create({
           data: {
             tenantId,
-            ...level
+            ...level,
+            isEnabled: true // Ensure it's always true since we filtered
           }
         });
         createdLevels.push(created);

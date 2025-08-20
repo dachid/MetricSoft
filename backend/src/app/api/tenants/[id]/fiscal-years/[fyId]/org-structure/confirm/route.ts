@@ -3,17 +3,18 @@
  * Confirms and locks the organizational structure for a fiscal year
  */
 
-const { PrismaClient } = require('@prisma/client');
-const { authenticateRequest } = require('../../../../../../../../lib/auth');
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { authMiddleware } from '@/lib/middleware/auth';
 
 const prisma = new PrismaClient();
 
-async function POST(request: Request, { params }: { params: { id: string, fyId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: { id: string, fyId: string } }) {
   try {
     // Authenticate the request
-    const user = await authenticateRequest(request);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await authMiddleware(request);
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error }, { status: 401 });
     }
 
     const { id: tenantId, fyId: fiscalYearId } = params;
@@ -61,7 +62,7 @@ async function POST(request: Request, { params }: { params: { id: string, fyId: 
       data: {
         fiscalYearId,
         confirmationType: 'org_structure',
-        confirmedBy: user.id,
+        confirmedBy: authResult.user!.id,
         confirmedAt: new Date(),
         canModify: false
       }
@@ -75,7 +76,7 @@ async function POST(request: Request, { params }: { params: { id: string, fyId: 
       });
     }
 
-    return Response.json({
+    return NextResponse.json({
       message: 'Organizational structure confirmed successfully',
       confirmation,
       nextStep: 'Configure Performance Components'
@@ -83,7 +84,7 @@ async function POST(request: Request, { params }: { params: { id: string, fyId: 
 
   } catch (error: any) {
     console.error('Error confirming organizational structure:', error);
-    return Response.json(
+    return NextResponse.json(
       { error: 'Failed to confirm organizational structure', details: error.message },
       { status: 500 }
     );
@@ -94,4 +95,3 @@ async function POST(request: Request, { params }: { params: { id: string, fyId: 
 
 // Export with dynamic flag for Next.js
 export const dynamic = 'force-dynamic';
-export { POST };

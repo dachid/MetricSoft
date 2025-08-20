@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/apiClient';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import FiscalYearSelector, { FiscalYearSelectorRef } from '@/components/FiscalYear/FiscalYearSelector';
@@ -54,19 +55,13 @@ function FiscalYearContent() {
       if (!isSuperAdmin) return;
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          setAvailableTenants(result.data);
-          if (result.data.length > 0 && !selectedTenantId) {
-            setSelectedTenantId(result.data[0].id);
-          }
+        const response = await apiClient.get('/admin/tenants');
+        console.log('🔍 Tenants API result:', response);
+        const tenants = Array.isArray(response.data) ? response.data : [];
+        setAvailableTenants(tenants);
+        if (tenants.length > 0 && !selectedTenantId) {
+          console.log('🔍 Auto-selecting first tenant:', tenants[0].id);
+          setSelectedTenantId(tenants[0].id);
         }
       } catch (error) {
         console.error('Error loading tenants:', error);
@@ -105,38 +100,26 @@ function FiscalYearContent() {
       }
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        console.log('🔑 [DEBUG] Token exists:', !!token);
-        console.log('🔑 [DEBUG] Token value (first 20 chars):', token?.substring(0, 20));
-        
-        console.log('🚀 [DEBUG] Making API call to:', `http://localhost:5000/api/tenants/${tenantIdToUse}/settings`);
+        console.log('🚀 [DEBUG] Making API call to:', `tenants/${tenantIdToUse}/settings`);
         
         // Check if the tenant/organization exists by trying to fetch tenant settings
-        const tenantResponse = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/settings`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const tenantResponse = await apiClient.get(`/tenants/${tenantIdToUse}/settings`);
         
-        console.log('📡 [DEBUG] Response status:', tenantResponse.status);
-        console.log('📡 [DEBUG] Response ok:', tenantResponse.ok);
-        console.log('📡 [DEBUG] Response headers:', Object.fromEntries(tenantResponse.headers.entries()));
+        console.log('📡 [DEBUG] Response data:', tenantResponse);
         
-        if (tenantResponse.ok) {
-          const tenantResult = await tenantResponse.json();
-          console.log('✅ [DEBUG] Tenant response data:', tenantResult);
+        if (tenantResponse.success) {
+          console.log('✅ [DEBUG] Tenant response data:', tenantResponse);
           
           // Check if tenant data exists (organization exists)
-          const hasOrg = !!tenantResult.data;
+          const hasOrg = !!tenantResponse.data;
           console.log('🏢 [DEBUG] Has organization:', hasOrg);
-          console.log('🏢 [DEBUG] tenantResult.success:', tenantResult.success);
-          console.log('🏢 [DEBUG] tenantResult.data:', tenantResult.data);
+          console.log('🏢 [DEBUG] tenantResponse.success:', tenantResponse.success);
+          console.log('🏢 [DEBUG] tenantResponse.data:', tenantResponse.data);
           
           // If we have tenant data, the organization exists
           setHasOrganization(hasOrg);
         } else {
-          const errorText = await tenantResponse.text();
-          console.log('❌ [DEBUG] Tenant settings request failed:', tenantResponse.status, errorText);
+          console.log('❌ [DEBUG] Tenant settings request failed:', tenantResponse);
           setHasOrganization(false);
         }
       } catch (error) {
@@ -352,22 +335,14 @@ function FiscalYearContent() {
                       <button
                         onClick={async () => {
                           try {
-                            const token = localStorage.getItem('metricsoft_auth_token');
                             const tenantIdToUse = selectedTenantId || user?.tenantId;
                             
-                            const response = await fetch(
-                              `http://localhost:5000/api/tenants/${tenantIdToUse}/fiscal-years/${selectedFiscalYear.id}`,
-                              {
-                                method: 'PUT',
-                                headers: {
-                                  'Authorization': `Bearer ${token}`,
-                                  'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ isCurrent: true })
-                              }
+                            const response = await apiClient.put(
+                              `/tenants/${tenantIdToUse}/fiscal-years/${selectedFiscalYear.id}`,
+                              { isCurrent: true }
                             );
 
-                            if (response.ok) {
+                            if (response.success) {
                               // Refresh the fiscal year selector to get updated data
                               if (fiscalYearSelectorRef.current) {
                                 await fiscalYearSelectorRef.current.refreshFiscalYears();
@@ -376,8 +351,7 @@ function FiscalYearContent() {
                               setSuccessMessage(`"${selectedFiscalYear.name}" is now set as the current fiscal year`);
                               setTimeout(() => setSuccessMessage(''), 3000);
                             } else {
-                              const error = await response.json();
-                              setErrorMessage(`Failed to set as current: ${error.error || 'Unknown error'}`);
+                              setErrorMessage(`Failed to set as current: ${response.error || 'Unknown error'}`);
                               setTimeout(() => setErrorMessage(''), 3000);
                             }
                           } catch (error) {

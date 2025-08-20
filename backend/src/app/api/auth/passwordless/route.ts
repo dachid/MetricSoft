@@ -171,27 +171,18 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Import AuthService dynamically to avoid circular imports
-      const { AuthService } = await import('@/lib/auth')
-      const token = AuthService.generateToken(user.id)
-
-      // Create session
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 7)
-
-      await prisma.session.create({
-        data: {
-          userId: user.id,
-          token,
-          expiresAt
-        }
-      })
+      // Create secure session with HTTP-only cookies
+      const { createSecureSession, createSecureCookies } = await import('@/lib/auth-utils')
+      const session = await createSecureSession(user.id, request)
 
       const authUser = {
         id: user.id,
         email: user.email,
         name: user.name,
         tenantId: user.tenantId,
+        profilePicture: (user as any).profilePicture || null,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString(),
         roles: user.roles.map((ur: any) => ({
           id: ur.role.id,
           name: ur.role.name,
@@ -200,13 +191,17 @@ export async function POST(request: NextRequest) {
         }))
       }
 
-      return NextResponse.json({
+      // Create response with user data and CSRF token
+      const response = NextResponse.json({
         success: true,
         data: {
           user: authUser,
-          token
+          csrfToken: session.csrfToken // Frontend needs this for API calls
         }
       })
+
+      // Set secure HTTP-only cookies
+      return createSecureCookies(response, session)
     }
 
     throw new ValidationError('Invalid action')

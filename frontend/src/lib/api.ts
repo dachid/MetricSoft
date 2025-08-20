@@ -44,6 +44,9 @@ export interface AuthUser {
   email: string
   name: string | null
   tenantId: string | null
+  profilePicture?: string
+  createdAt?: string
+  updatedAt?: string
   roles: Array<{
     id: string
     name: string

@@ -17,27 +17,31 @@ model User {
   tenantId               String?
   orgAssignments         UserOrgAssignment[]
   roles                  UserRole[]
+  sessions               Session[]
   tenant                 Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   kpiChampionAssignments OrgUnitKpiChampion[]
+  individualKpis         IndividualKPI[]
+  assignedKpis           OrganizationalKPI[]     @relation("AssignedKpis")
 
   @@map("users")
 }
 
 model Tenant {
-  id             String          @id @default(cuid())
-  name           String
-  subdomain      String          @unique
-  settings       Json            @default("{}")
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  allowedDomains String[]        @default([])
-  fiscalYears    FiscalYear[]
-  orgUnits       OrgUnit[]
-  perspectives   Perspective[]
-  tenantSettings TenantSettings?
-  users          UserRole[]
-  ownerUsers     User[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  subdomain              String                  @unique
+  settings               Json                    @default("{}")
+  isActive               Boolean                 @default(true)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  allowedDomains         String[]                @default([])
+  fiscalYears            FiscalYear[]
+  orgUnits               OrgUnit[]
+  perspectives           Perspective[]
+  tenantSettings         TenantSettings?
+  users                  UserRole[]
+  ownerUsers             User[]
+  performanceComponents  PerformanceComponent[]
 
   @@map("tenants")
 }
@@ -110,9 +114,14 @@ model Session {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
+  csrfToken String?  @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
@@ -152,6 +161,7 @@ model OrgUnit {
   tenant            Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userAssignments   UserOrgAssignment[]
   kpiChampions      OrgUnitKpiChampion[]
+  organizationalKpis OrganizationalKPI[]
 
   @@unique([fiscalYearId, levelDefinitionId, code])
   @@map("org_units")
@@ -307,4 +317,63 @@ model OrgUnitKpiChampion {
 
   @@unique([orgUnitId, userId])
   @@map("org_unit_kpi_champions")
+}
+
+model PerformanceComponent {
+  id                    String                  @id @default(cuid())
+  tenantId              String
+  name                  String
+  description           String?
+  organizationalLevel   String
+  weight                Float                   @default(1.0)
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  
+  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  individualKpis        IndividualKPI[]
+  organizationalKpis    OrganizationalKPI[]
+
+  @@unique([tenantId, name, organizationalLevel], name: "tenantId_name_organizationalLevel")
+  @@map("performance_components")
+}
+
+model IndividualKPI {
+  id           String                @id @default(cuid())
+  userId       String
+  componentId  String
+  name         String
+  description  String?
+  targetValue  Float
+  currentValue Float                 @default(0)
+  unit         String
+  status       String                @default("NOT_STARTED")
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  component    PerformanceComponent  @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@map("individual_kpis")
+}
+
+model OrganizationalKPI {
+  id                     String                @id @default(cuid())
+  organizationalUnitId   String
+  componentId            String
+  name                   String
+  description            String?
+  targetValue            Float
+  currentValue           Float                 @default(0)
+  unit                   String
+  status                 String                @default("NOT_STARTED")
+  assignedById           String
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  
+  organizationalUnit     OrgUnit               @relation(fields: [organizationalUnitId], references: [id], onDelete: Cascade)
+  component              PerformanceComponent  @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  assignedBy             User                  @relation("AssignedKpis", fields: [assignedById], references: [id], onDelete: Cascade)
+
+  @@map("organizational_kpis")
 }

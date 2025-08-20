@@ -2,47 +2,137 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { authApi, AuthUser, LoginCredentials, RegisterCredentials, PasswordlessRequest, PasswordlessVerification } from '@/lib/api'
-import { apiClient } from '@/lib/apiClient'
+import { apiClient, useApi } from '@/lib/apiClient'
+import { ErrorHandler, FrontendErrorCode } from '@/lib/errorHandler'
 
 interface AuthContextType {
   user: AuthUser | null
   loading: boolean
-  signIn: (credentials: LoginCredentials) => Promise<{ error?: string }>
-  signUp: (credentials: RegisterCredentials) => Promise<{ error?: string }>
-  signOut: () => Promise<{ error?: string }>
-  sendPasswordlessCode: (request: PasswordlessRequest) => Promise<{ error?: string }>
-  verifyPasswordlessCode: (request: PasswordlessVerification) => Promise<{ error?: string }>
+  error: string | null
+  clearError: () => void
+  signIn: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>
+  signUp: (credentials: RegisterCredentials) => Promise<{ success: boolean; error?: string }>
+  signOut: () => Promise<{ success: boolean; error?: string }>
+  updateUser: (userData: Partial<AuthUser>) => Promise<{ success: boolean; error?: string }>
+  sendPasswordlessCode: (request: PasswordlessRequest) => Promise<{ success: boolean; error?: string }>
+  verifyPasswordlessCode: (request: PasswordlessVerification) => Promise<{ success: boolean; error?: string }>
+  isOnline: boolean
+  connectionStatus: 'connected' | 'connecting' | 'disconnected'
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Helper function to safely access localStorage
+const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    if (typeof window === 'undefined') return null
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.setItem(key, value)
+    } catch {
+      // Ignore localStorage errors
+    }
+  },
+  removeItem: (key: string): void => {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isOnline, setIsOnline] = useState(true)
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connected')
+  const [isClient, setIsClient] = useState(false)
+  const [csrfToken, setCsrfToken] = useState<string | null>(null)
+  const api = useApi()
+
+  const clearError = () => setError(null)
+
+  const handleAuthError = (error: any, context: string): string => {
+    const authError = ErrorHandler.handleApiError(error, {
+      component: 'AuthProvider',
+      action: context
+    })
+    
+    const userMessage = ErrorHandler.getUserFriendlyMessage(authError)
+    setError(userMessage)
+    
+    return userMessage
+  }
+
+  // Helper to get CSRF token from cookie
+  const getCSRFToken = (): string | null => {
+    if (typeof document === 'undefined') return null
+    return document.cookie
+      .split('; ')
+      .find(row => row.startsWith('csrf-token='))
+      ?.split('=')[1] || null
+  }
+
+  // Set client flag to prevent SSR issues
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   useEffect(() => {
-    // Check for existing session on mount
+    // Only run auth initialization on client side
+    if (!isClient) return
+
     const initAuth = async () => {
       console.log('🔍 AuthProvider - Initializing auth...');
       try {
-        const token = localStorage.getItem('metricsoft_auth_token')
-        const userData = localStorage.getItem('metricsoft_user')
-        
-        console.log('🔍 AuthProvider - Token exists:', !!token);
-        console.log('🔍 AuthProvider - User data exists:', !!userData);
-        
-        if (token && userData) {
-          const user = JSON.parse(userData)
-          console.log('🔍 AuthProvider - Parsed user:', user);
-          setUser(user)
-          // Set the token in the API client
-          apiClient.setAuthToken(token)
+        // Check for CSRF token in cookies
+        const token = getCSRFToken()
+        if (token) {
+          setCsrfToken(token)
+          console.log('🔍 AuthProvider - CSRF token found in cookies');
+        }
+
+        // Try to validate existing session with the backend
+        const response = await fetch('/api/auth/me', {
+          credentials: 'include', // Include HTTP-only cookies
+          headers: {
+            'x-csrf-token': token || '', // Send CSRF token in header
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            console.log('🔍 AuthProvider - Valid session found:', result.data);
+            setUser({
+              id: result.data.id,
+              email: result.data.email,
+              name: result.data.name,
+              tenantId: result.data.tenantId,
+              roles: result.data.roles?.map((ur: any) => ur.role) || [],
+              profilePicture: result.data.profilePicture,
+              createdAt: result.data.createdAt,
+              updatedAt: result.data.updatedAt
+            });
+            if (result.csrfToken) {
+              setCsrfToken(result.csrfToken);
+            }
+          }
+        } else {
+          console.log('🔍 AuthProvider - No valid session found');
         }
       } catch (error) {
         console.error('🔍 AuthProvider - Error during auth init:', error)
-        localStorage.removeItem('metricsoft_auth_token')
-        localStorage.removeItem('metricsoft_user')
-        apiClient.clearAuthToken()
       } finally {
         console.log('🔍 AuthProvider - Setting loading to false');
         setLoading(false)
@@ -50,30 +140,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     initAuth()
-  }, [])
+  }, [isClient])
 
   const signIn = async (credentials: LoginCredentials) => {
     setLoading(true)
+    clearError()
+    
     try {
       const result = await authApi.login(credentials)
       
       if (!result.success || !result.data) {
-        return { error: result.error || 'Login failed' }
+        const errorMessage = handleAuthError(result, 'signIn')
+        return { success: false, error: errorMessage }
       }
 
       const { user, token } = result.data
       
-      // Store auth data
-      localStorage.setItem('metricsoft_auth_token', token)
-      localStorage.setItem('metricsoft_user', JSON.stringify(user))
+      // Store auth data (TODO: Replace with HTTP-only cookies)
+      safeLocalStorage.setItem('metricsoft_auth_token', token)
+      safeLocalStorage.setItem('metricsoft_user', JSON.stringify(user))
       setUser(user)
       // Set the token in the API client
       apiClient.setAuthToken(token)
       
-      return {}
+      return { success: true }
     } catch (error: any) {
       console.error('Sign in error:', error)
-      return { error: error.response?.data?.error || 'An unexpected error occurred' }
+      const errorMessage = handleAuthError(error, 'signIn')
+      return { success: false, error: errorMessage }
     } finally {
       setLoading(false)
     }
@@ -81,32 +175,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (credentials: RegisterCredentials) => {
     setLoading(true)
+    clearError()
+    
     try {
       const result = await authApi.register(credentials)
       
       if (!result.success || !result.data) {
-        return { error: result.error || 'Registration failed' }
+        const errorMessage = handleAuthError(result, 'signUp')
+        return { success: false, error: errorMessage }
       }
 
       const { user, token } = result.data
       
-      // Store auth data
-      localStorage.setItem('metricsoft_auth_token', token)
-      localStorage.setItem('metricsoft_user', JSON.stringify(user))
+      // Store auth data (TODO: Replace with HTTP-only cookies)
+      safeLocalStorage.setItem('metricsoft_auth_token', token)
+      safeLocalStorage.setItem('metricsoft_user', JSON.stringify(user))
       setUser(user)
       // Set the token in the API client
       apiClient.setAuthToken(token)
       
-      return {}
+      return { success: true }
     } catch (error: any) {
       console.error('Sign up error:', error)
-      return { error: error.response?.data?.error || 'An unexpected error occurred' }
+      const errorMessage = handleAuthError(error, 'signUp')
+      return { success: false, error: errorMessage }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updateUser = async (userData: Partial<AuthUser>) => {
+    setLoading(true)
+    clearError()
+    
+    try {
+      // Update user profile via API
+      const result = await api.put('/users/profile', userData)
+      
+      if (!result.success) {
+        const errorMessage = handleAuthError(result, 'updateUser')
+        return { success: false, error: errorMessage }
+      }
+
+      // Update local user data
+      const updatedUser = { ...user, ...userData } as AuthUser
+      localStorage.setItem('metricsoft_user', JSON.stringify(updatedUser))
+      setUser(updatedUser)
+      
+      return { success: true }
+    } catch (error: any) {
+      console.error('Update user error:', error)
+      const errorMessage = handleAuthError(error, 'updateUser')
+      return { success: false, error: errorMessage }
     } finally {
       setLoading(false)
     }
   }
 
   const sendPasswordlessCode = async (request: PasswordlessRequest) => {
+    clearError()
+    
     try {
       const result = await authApi.sendPasswordlessCode(request)
       
@@ -115,10 +243,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const errorMessage = typeof result.error === 'string' 
           ? result.error 
           : (result.error as any)?.message || 'Failed to send code'
-        return { error: errorMessage }
+        const authErrorMessage = handleAuthError({ error: errorMessage }, 'sendPasswordlessCode')
+        return { success: false, error: authErrorMessage }
       }
       
-      return {}
+      return { success: true }
     } catch (error: any) {
       console.error('Send passwordless code error:', error)
       // Handle axios error structure and new error structure
@@ -126,39 +255,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                            error.response?.data?.error || 
                            error.message ||
                            'An unexpected error occurred'
-      return { error: errorMessage }
+      const authErrorMessage = handleAuthError(error, 'sendPasswordlessCode')
+      return { success: false, error: authErrorMessage }
     }
   }
 
   const verifyPasswordlessCode = async (request: PasswordlessVerification) => {
     setLoading(true)
+    clearError()
+    
     try {
-      const result = await authApi.verifyPasswordlessCode(request)
+      const response = await fetch('/api/auth/passwordless', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include HTTP-only cookies
+        body: JSON.stringify({
+          action: 'verify',
+          email: request.email,
+          code: request.code
+        })
+      })
+
+      const result = await response.json()
       
-      if (!result.success || !result.data) {
-        const errorMessage = typeof result.error === 'string' 
-          ? result.error 
-          : (result.error as any)?.message || 'Verification failed'
-        return { error: errorMessage }
+      if (!response.ok || !result.success || !result.data) {
+        const errorMessage = result.error || 'Verification failed'
+        const authErrorMessage = handleAuthError({ error: errorMessage }, 'verifyPasswordlessCode')
+        return { success: false, error: authErrorMessage }
       }
 
-      const { user, token } = result.data
+      const { user } = result.data
       
-      // Store auth data
-      localStorage.setItem('metricsoft_auth_token', token)
-      localStorage.setItem('metricsoft_user', JSON.stringify(user))
+      // Set user state (no localStorage needed - cookies handle auth!)
       setUser(user)
-      // Set the token in the API client
-      apiClient.setAuthToken(token)
       
-      return {}
+      // Store CSRF token for future API calls
+      if (result.csrfToken) {
+        setCsrfToken(result.csrfToken)
+      }
+      
+      return { success: true }
     } catch (error: any) {
       console.error('Verify passwordless code error:', error)
-      const errorMessage = error.response?.data?.error?.message || 
-                           error.response?.data?.error || 
-                           error.message ||
-                           'An unexpected error occurred'
-      return { error: errorMessage }
+      const errorMessage = error.message || 'An unexpected error occurred'
+      const authErrorMessage = handleAuthError(error, 'verifyPasswordlessCode')
+      return { success: false, error: authErrorMessage }
     } finally {
       setLoading(false)
     }
@@ -166,26 +309,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      localStorage.removeItem('metricsoft_auth_token')
-      localStorage.removeItem('metricsoft_user')
+      // Call logout endpoint to clear HTTP-only cookies
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include', // Include HTTP-only cookies
+        headers: {
+          'x-csrf-token': csrfToken || '', // Send CSRF token if available
+        }
+      })
+
+      // Clear local state regardless of response
       setUser(null)
-      // Clear the token from the API client
-      apiClient.clearAuthToken()
-      return {}
+      setCsrfToken(null)
+      
+      return { success: true }
     } catch (error) {
       console.error('Sign out error:', error)
-      return { error: 'An unexpected error occurred' }
+      // Still clear local state even if logout request fails
+      setUser(null)
+      setCsrfToken(null)
+      return { success: false, error: 'An unexpected error occurred' }
     }
   }
 
   const value: AuthContextType = {
     user,
     loading,
+    error,
+    clearError,
     signIn,
     signUp,
     signOut,
+    updateUser,
     sendPasswordlessCode,
-    verifyPasswordlessCode
+    verifyPasswordlessCode,
+    isOnline,
+    connectionStatus
   }
 
   return (

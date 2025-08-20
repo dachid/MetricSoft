@@ -39,6 +39,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // If tenantId is provided, check domain restrictions
+    if (tenantId) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { allowedDomains: true }
+      })
+
+      if (!tenant) {
+        return NextResponse.json(
+          { success: false, error: 'Tenant not found' },
+          { status: 404 }
+        )
+      }
+
+      // Check domain restrictions if tenant has allowed domains configured
+      if (tenant.allowedDomains && tenant.allowedDomains.length > 0) {
+        const emailDomain = email.toLowerCase().split('@')[1]
+        if (!tenant.allowedDomains.includes(emailDomain)) {
+          return NextResponse.json({ 
+            success: false,
+            error: `Email domain '${emailDomain}' is not allowed for this organization. Allowed domains: ${tenant.allowedDomains.join(', ')}` 
+          }, { status: 400 })
+        }
+      }
+    }
+
     // Create user (passwordless - admin onboarded)
     const userData: any = {
       email: email.toLowerCase(),

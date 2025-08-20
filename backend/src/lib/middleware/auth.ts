@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { validateSecureSession } from '@/lib/auth-utils';
 
 export interface AuthResult {
   success: boolean;
@@ -20,70 +18,29 @@ export interface AuthResult {
 
 export async function authMiddleware(request: NextRequest): Promise<AuthResult> {
   try {
-    const authorization = request.headers.get('Authorization');
-    
-    if (!authorization || !authorization.startsWith('Bearer ')) {
-      return {
-        success: false,
-        error: 'No authentication token provided'
-      };
-    }
-
-    const token = authorization.substring(7);
-    
-    // Find session with valid token that hasn't expired
-    const session = await prisma.session.findUnique({
-      where: { 
-        token,
-        expiresAt: {
-          gt: new Date()
-        }
-      }
+    console.log('🔍 Auth middleware called for:', request.url);
+    console.log('🔍 Headers:', {
+      csrf: request.headers.get('x-csrf-token'),
+      cookie: request.headers.get('cookie'),
     });
-
-    if (!session) {
+    
+    // Use the new secure session validation
+    const sessionResult = await validateSecureSession(request);
+    
+    console.log('🔍 Session validation result:', sessionResult);
+    
+    if (!sessionResult.success || !sessionResult.user) {
+      console.log('🔍 Auth middleware failed:', sessionResult.error);
       return {
         success: false,
-        error: 'Invalid or expired token'
+        error: sessionResult.error || 'Authentication failed'
       };
     }
 
-    // Get user details with roles
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: {
-        id: true,
-        email: true,
-        tenantId: true,
-        roles: {
-          select: {
-            role: {
-              select: {
-                id: true,
-                code: true,
-                name: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!user) {
-      return {
-        success: false,
-        error: 'User not found'
-      };
-    }
-
+    console.log('🔍 Auth middleware success for user:', sessionResult.user.email);
     return {
       success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        tenantId: user.tenantId,
-        roles: user.roles.map(ur => ur.role)
-      }
+      user: sessionResult.user
     };
   } catch (error) {
     console.error('Auth middleware error:', error);

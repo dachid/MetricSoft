@@ -1,35 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { ApiErrorHandler, AuthenticationError } from '@/lib/errors'
+import { validateSecureSession, extendSession } from '@/lib/auth-utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new AuthenticationError('Authorization header required')
-    }
-
-    const token = authHeader.substring(7)
+    const authResult = await validateSecureSession(request)
     
-    // Find session
-    const session = await prisma.session.findFirst({
-      where: {
-        token,
-        expiresAt: {
-          gt: new Date()
-        }
-      }
-    })
-
-    if (!session) {
-      throw new AuthenticationError('Invalid or expired session')
+    if (!authResult.success || !authResult.user || !authResult.session) {
+      return NextResponse.json(
+        { success: false, error: authResult.error || 'Not authenticated' },
+        { status: 401 }
+      )
     }
 
-    // Get user with roles
+    // Extend session on activity (optional)
+    await extendSession(authResult.session.token)
+
+    // Get full user data with tenant info for compatibility
+    const { prisma } = await import('@/lib/prisma')
     const user = await prisma.user.findUnique({
-      where: { id: session.userId },
+      where: { id: authResult.user.id },
       include: {
         roles: {
           include: {
@@ -42,7 +33,10 @@ export async function GET(request: NextRequest) {
     })
 
     if (!user) {
-      throw new AuthenticationError('User not found')
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json({
@@ -69,9 +63,14 @@ export async function GET(request: NextRequest) {
             name: userRole.tenant.name
           }
         }))
-      }
+      },
+      csrfToken: authResult.session.csrfToken // Include CSRF token for frontend
     })
   } catch (error) {
-    return ApiErrorHandler.handle(error)
+    console.error('Session validation error:', error)
+    return NextResponse.json(
+      { success: false, error: 'Session validation failed' },
+      { status: 500 }
+    )
   }
 }
