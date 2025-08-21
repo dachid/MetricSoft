@@ -3,12 +3,18 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/apiClient';
 
 interface OrganizationalUnit {
   id: string;
   name: string;
   type: string;
   level: string;
+  levelDefinition?: {
+    name: string;
+    pluralName: string;
+    hierarchyLevel: number;
+  };
 }
 
 interface PerformanceComponent {
@@ -83,25 +89,22 @@ export default function AssignedKPIsPage() {
   });
 
   useEffect(() => {
-    fetchAssignedKPIs();
-    fetchOrganizationalUnits();
-    fetchOrganizationalComponents();
-  }, [selectedUnit]);
+    if (user) {
+      fetchAssignedKPIs();
+      fetchOrganizationalUnits();
+      fetchOrganizationalComponents();
+    }
+  }, [selectedUnit, user]);
 
   const fetchAssignedKPIs = async () => {
     try {
       const url = selectedUnit 
-        ? `/api/kpis/assigned-kpis?unitId=${selectedUnit}`
-        : '/api/kpis/assigned-kpis';
+        ? `/kpis/assigned-kpis?unitId=${selectedUnit}`
+        : '/kpis/assigned-kpis';
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAssignedKpis(data);
+      const response = await apiClient.get(url);
+      if (response.success && response.data) {
+        setAssignedKpis(Array.isArray(response.data) ? response.data : []);
       }
     } catch (error) {
       console.error('Error fetching assigned KPIs:', error);
@@ -112,14 +115,19 @@ export default function AssignedKPIsPage() {
 
   const fetchOrganizationalUnits = async () => {
     try {
-      const response = await fetch('/api/organizational-units/assigned', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setOrganizationalUnits(data);
+      if (!user?.tenantId) return;
+      
+      const response = await apiClient.get(`/tenants/${user.tenantId}/org-units`);
+      if (response.success && response.data) {
+        // Extract orgUnits from the response structure
+        const orgUnits = (response.data as any).orgUnits || [];
+        
+        // Filter to only include units where the user is a KPI champion
+        const assignedUnits = orgUnits.filter((unit: any) => 
+          unit.kpiChampions?.some((champion: any) => champion.user?.id === user.id)
+        );
+        
+        setOrganizationalUnits(assignedUnits);
       }
     } catch (error) {
       console.error('Error fetching organizational units:', error);
@@ -128,14 +136,9 @@ export default function AssignedKPIsPage() {
 
   const fetchOrganizationalComponents = async () => {
     try {
-      const response = await fetch('/api/performance-components?level=ORGANIZATIONAL', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setComponents(data);
+      const response = await apiClient.get('/performance-components?level=ORGANIZATIONAL');
+      if (response.success && response.data) {
+        setComponents(Array.isArray(response.data) ? response.data : []);
       }
     } catch (error) {
       console.error('Error fetching performance components:', error);
@@ -145,17 +148,10 @@ export default function AssignedKPIsPage() {
   const handleCreateKPI = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/kpis/assigned-kpis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify(newKpi),
-      });
+      const response = await apiClient.post('/kpis/assigned-kpis', newKpi);
 
-      if (response.ok) {
-        const createdKpi = await response.json();
+      if (response.success && response.data) {
+        const createdKpi = response.data as AssignedKPI;
         setAssignedKpis([...assignedKpis, createdKpi]);
         setIsModalOpen(false);
         setNewKpi({
@@ -174,17 +170,10 @@ export default function AssignedKPIsPage() {
 
   const handleUpdateProgress = async (kpiId: string, currentValue: number) => {
     try {
-      const response = await fetch(`/api/kpis/assigned-kpis/${kpiId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ currentValue }),
-      });
+      const response = await apiClient.put(`/kpis/assigned-kpis/${kpiId}/progress`, { currentValue });
 
-      if (response.ok) {
-        const updatedKpi = await response.json();
+      if (response.success && response.data) {
+        const updatedKpi = response.data as AssignedKPI;
         setAssignedKpis(assignedKpis.map(kpi => kpi.id === kpiId ? updatedKpi : kpi));
       }
     } catch (error) {
@@ -229,16 +218,10 @@ export default function AssignedKPIsPage() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout title="Assigned KPIs" subtitle="Manage KPIs for organizational units where you serve as KPI Champion">
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Assigned KPIs</h1>
-            <p className="text-gray-600">
-              Manage KPIs for organizational units where you serve as KPI Champion
-            </p>
-          </div>
+        {/* Create KPI Button */}
+        <div className="flex justify-end">
           <button
             onClick={openCreateModal}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -261,7 +244,7 @@ export default function AssignedKPIsPage() {
               <option value="">All Units</option>
               {organizationalUnits.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  {unit.name} ({unit.type})
+                  {unit.name} ({unit.levelDefinition?.name || unit.type || 'Unknown'})
                 </option>
               ))}
             </select>
@@ -465,7 +448,7 @@ export default function AssignedKPIsPage() {
                       <option value="">Select an organizational unit</option>
                       {organizationalUnits.map((unit) => (
                         <option key={unit.id} value={unit.id}>
-                          {unit.name} ({unit.type})
+                          {unit.name} ({unit.levelDefinition?.name || unit.type || 'Unknown'})
                         </option>
                       ))}
                     </select>

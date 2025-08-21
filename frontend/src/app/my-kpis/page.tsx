@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/apiClient';
 
 interface PerformanceComponent {
   id: string;
@@ -71,14 +72,9 @@ export default function MyKPIsPage() {
 
   const fetchMyKPIs = async () => {
     try {
-      const response = await fetch('/api/kpis/my-kpis', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setKpis(data);
+      const response = await apiClient.get('/kpis/my-kpis');
+      if (response.success && response.data) {
+        setKpis(Array.isArray(response.data) ? response.data : []);
       }
     } catch (error) {
       console.error('Error fetching my KPIs:', error);
@@ -89,14 +85,9 @@ export default function MyKPIsPage() {
 
   const fetchIndividualComponents = async () => {
     try {
-      const response = await fetch('/api/performance-components?level=INDIVIDUAL', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setComponents(data);
+      const response = await apiClient.get('/performance-components?level=INDIVIDUAL');
+      if (response.success && response.data) {
+        setComponents(Array.isArray(response.data) ? response.data : []);
       }
     } catch (error) {
       console.error('Error fetching performance components:', error);
@@ -106,17 +97,10 @@ export default function MyKPIsPage() {
   const handleCreateKPI = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/kpis/my-kpis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify(newKpi),
-      });
+      const response = await apiClient.post('/kpis/my-kpis', newKpi);
 
-      if (response.ok) {
-        const createdKpi = await response.json();
+      if (response.success && response.data) {
+        const createdKpi = response.data as KPI;
         setKpis([...kpis, createdKpi]);
         setIsModalOpen(false);
         setNewKpi({
@@ -134,17 +118,10 @@ export default function MyKPIsPage() {
 
   const handleUpdateProgress = async (kpiId: string, currentValue: number) => {
     try {
-      const response = await fetch(`/api/kpis/my-kpis/${kpiId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ currentValue }),
-      });
+      const response = await apiClient.put(`/kpis/my-kpis/${kpiId}/progress`, { currentValue });
 
-      if (response.ok) {
-        const updatedKpi = await response.json();
+      if (response.success && response.data) {
+        const updatedKpi = response.data as KPI;
         setKpis(kpis.map(kpi => kpi.id === kpiId ? updatedKpi : kpi));
       }
     } catch (error) {
@@ -185,16 +162,10 @@ export default function MyKPIsPage() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout title="My KPIs" subtitle="Manage and track your individual Key Performance Indicators">
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">My KPIs</h1>
-            <p className="text-gray-600">
-              Manage and track your individual Key Performance Indicators
-            </p>
-          </div>
+        {/* Create KPI Button */}
+        <div className="flex justify-end">
           <button
             onClick={openCreateModal}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
