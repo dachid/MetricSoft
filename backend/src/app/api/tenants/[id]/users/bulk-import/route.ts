@@ -97,6 +97,14 @@ export async function POST(
     // Track emails in current import batch to prevent duplicates within the batch
     const importEmails = new Set<string>();
 
+    // First pass: collect all emails from import batch for line manager validation
+    const allImportEmails = new Set<string>();
+    for (const userData of users) {
+      if (userData.email?.trim()) {
+        allImportEmails.add(userData.email.trim().toLowerCase());
+      }
+    }
+
     const results: ImportResult = {
       successful: 0,
       failed: 0,
@@ -177,7 +185,7 @@ export async function POST(
 
           // Check if line manager exists in system or import batch
           const managerExistsInSystem = existingEmails.has(cleanLineManager);
-          const managerExistsInBatch = importEmails.has(cleanLineManager);
+          const managerExistsInBatch = allImportEmails.has(cleanLineManager);
           
           if (!managerExistsInSystem && !managerExistsInBatch) {
             results.errors.push(

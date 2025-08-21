@@ -5,7 +5,8 @@ import { useAuth } from '@/lib/auth-context'
 import DashboardLayout from '@/components/Layout/DashboardLayout'
 import { Card } from '@/components/ui'
 import { apiClient } from '@/lib/apiClient'
-import { Users as UsersIcon, Plus, Mail, User, Building, Edit, Trash2, Search, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+import BulkUserImportDialog from '@/components/features/BulkUserImportDialog'
+import { Users as UsersIcon, Plus, Mail, User, Building, Edit, Trash2, Search, ChevronLeft, ChevronRight, ChevronDown, Upload } from 'lucide-react'
 
 interface User {
   id: string
@@ -43,6 +44,9 @@ export default function UsersPage() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  
+  // Bulk import state
+  const [showBulkImportDialog, setShowBulkImportDialog] = useState(false)
   
   // Search and pagination state
   const [searchTerm, setSearchTerm] = useState('')
@@ -312,13 +316,23 @@ export default function UsersPage() {
           </div>
           
           {!showAddForm && (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add User</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add User</span>
+              </button>
+              
+              <button
+                onClick={() => setShowBulkImportDialog(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Bulk Import</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -630,6 +644,18 @@ export default function UsersPage() {
             )}
           </div>
         </Card>
+        
+        {/* Bulk Import Dialog */}
+        <BulkUserImportDialog
+          isOpen={showBulkImportDialog}
+          onClose={() => setShowBulkImportDialog(false)}
+          onImportComplete={() => {
+            setShowBulkImportDialog(false)
+            setSuccess('Users imported successfully!')
+            setTimeout(() => setSuccess(''), 5000)
+            loadUsers() // Refresh the users list
+          }}
+        />
       </div>
     </DashboardLayout>
   )

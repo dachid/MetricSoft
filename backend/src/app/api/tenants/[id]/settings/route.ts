@@ -35,7 +35,8 @@ export async function GET(
         tenant: {
           select: {
             name: true,
-            subdomain: true
+            subdomain: true,
+            allowedDomains: true
           }
         }
       }
@@ -65,7 +66,8 @@ export async function GET(
           tenant: {
             select: {
               name: true,
-              subdomain: true
+              subdomain: true,
+              allowedDomains: true
             }
           }
         }
@@ -165,7 +167,8 @@ export async function PUT(
         tenant: {
           select: {
             name: true,
-            subdomain: true
+            subdomain: true,
+            allowedDomains: true
           }
         }
       }
