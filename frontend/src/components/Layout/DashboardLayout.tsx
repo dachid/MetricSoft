@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { ChevronDown, User, LogOut } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -21,6 +22,32 @@ interface NavItem {
 export default function DashboardLayout({ children, title = "Dashboard", subtitle }: DashboardLayoutProps) {
   const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setProfileDropdownOpen(false);
+      }
+    }
+
+    function handleEscapeKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setProfileDropdownOpen(false);
+      }
+    }
+
+    if (profileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscapeKey);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleEscapeKey);
+      };
+    }
+  }, [profileDropdownOpen]);
 
   const navigation: NavItem[] = [
     {
@@ -138,18 +165,25 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
           <h1 className="text-xl font-bold text-blue-600">MetricSoft</h1>
         </div>
 
-        {/* User info */}
+        {/* User info - simplified for sidebar */}
         <div className="mt-6 flex flex-col items-center px-6">
-          <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full">
-            <span className="text-lg font-medium text-blue-600">
-              {user?.name?.[0] || user?.email?.[0] || 'U'}
-            </span>
+          <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+            {user?.profilePicture ? (
+              <img
+                src={user.profilePicture}
+                alt="Profile"
+                className="w-10 h-10 rounded-full object-cover"
+              />
+            ) : (
+              <span className="text-sm font-medium text-blue-600">
+                {user?.name?.[0] || user?.email?.[0] || 'U'}
+              </span>
+            )}
           </div>
-          <div className="mt-3 text-center">
+          <div className="mt-2 text-center">
             <p className="text-sm font-medium text-gray-900 truncate">
               {user?.name || user?.email}
             </p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
           </div>
         </div>
 
@@ -262,19 +296,6 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
             )}
           </div>
         </nav>
-
-        {/* Sign out */}
-        <div className="px-6 pb-4">
-          <button
-            onClick={handleSignOut}
-            className="group flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900"
-          >
-            <svg className="mr-3 flex-shrink-0 h-6 w-6 text-gray-400 group-hover:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Sign Out
-          </button>
-        </div>
       </div>
 
       {/* Mobile sidebar */}
@@ -299,31 +320,114 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
 
       {/* Main content */}
       <div className="lg:pl-64 flex flex-col flex-1">
-        {/* Mobile header */}
-        <div className="sticky top-0 z-10 lg:hidden pl-1 pt-1 sm:pl-3 sm:pt-3 bg-white border-b border-gray-200">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-          >
-            <span className="sr-only">Open sidebar</span>
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+        {/* Top navbar */}
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden -ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+            >
+              <span className="sr-only">Open sidebar</span>
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
+            {/* Page title - visible on larger screens */}
+            <div className="hidden lg:block">
+              <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+              {subtitle && (
+                <p className="text-sm text-gray-500">{subtitle}</p>
+              )}
+            </div>
+
+            {/* Spacer for mobile */}
+            <div className="lg:hidden"></div>
+
+            {/* Profile dropdown */}
+            <div className="relative" ref={profileDropdownRef}>
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              >
+                {/* Profile picture or avatar */}
+                <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                  {user?.profilePicture ? (
+                    <img
+                      src={user.profilePicture}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm font-medium text-blue-600">
+                      {user?.name?.[0] || user?.email?.[0] || 'U'}
+                    </span>
+                  )}
+                </div>
+                
+                {/* User name - hidden on mobile */}
+                <div className="hidden sm:block text-left">
+                  <p className="text-sm font-medium text-gray-900 truncate max-w-32">
+                    {user?.name || user?.email}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate max-w-32">
+                    {user?.roles?.[0]?.name || 'User'}
+                  </p>
+                </div>
+                
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown menu */}
+              {profileDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                  {/* User info section */}
+                  <div className="px-4 py-3 border-b border-gray-100 sm:hidden">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {user?.name || user?.email}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {user?.roles?.map(role => role.name).join(', ')}
+                    </p>
+                  </div>
+
+                  {/* Profile settings */}
+                  <a
+                    href="/profile"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    onClick={() => setProfileDropdownOpen(false)}
+                  >
+                    <User className="w-4 h-4 mr-3 text-gray-400" />
+                    Profile Settings
+                  </a>
+
+                  {/* Sign out */}
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      handleSignOut();
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4 mr-3 text-gray-400" />
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <main className="flex-1">
-          {/* Page header */}
-          <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate">
-                  {title}
-                </h1>
-                {subtitle && (
-                  <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
-                )}
-              </div>
+          {/* Page header for mobile */}
+          <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-4">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+              {subtitle && (
+                <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
+              )}
             </div>
           </div>
 

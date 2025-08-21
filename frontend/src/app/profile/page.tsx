@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/apiClient';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { User, Mail, Shield, Camera, Check, X } from 'lucide-react';
 
@@ -24,31 +25,21 @@ export default function ProfilePage() {
     setError('');
 
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch('http://localhost:5000/api/users/profile', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-        }),
+      const response = await apiClient.put('/users/profile', {
+        name: name.trim(),
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      if (response.success) {
         setSuccess('Profile updated successfully!');
         setIsEditing(false);
         setTimeout(() => setSuccess(''), 5000);
         
         // Update user context with new data
-        if (result.data?.user) {
-          updateUser(result.data.user);
+        if (response.data && (response.data as any).user) {
+          updateUser((response.data as any).user);
         }
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to update profile');
+        setError(typeof response.error === 'string' ? response.error : response.error?.message || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -87,30 +78,21 @@ export default function ProfilePage() {
       const formData = new FormData();
       formData.append('profilePicture', file);
 
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch('http://localhost:5000/api/users/profile/picture', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      const response = await apiClient.postFile('/users/profile/picture', formData);
 
-      if (response.ok) {
-        const result = await response.json();
+      if (response.success) {
         setSuccess('Profile picture updated successfully!');
         setTimeout(() => setSuccess(''), 5000);
         
         // Update user context with new profile picture
-        if (result.data?.profilePicture && user) {
+        if (response.data && (response.data as any).profilePicture && user) {
           updateUser({
             ...user,
-            profilePicture: result.data.profilePicture
+            profilePicture: (response.data as any).profilePicture
           });
         }
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Failed to upload profile picture');
+        setError(typeof response.error === 'string' ? response.error : response.error?.message || 'Failed to upload profile picture');
       }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
@@ -240,14 +222,16 @@ export default function ProfilePage() {
                   <div className="flex items-center space-x-3">
                     <Shield className="w-5 h-5 text-gray-400" />
                     <div className="flex flex-wrap gap-2">
-                      {user?.roles?.map((role) => (
+                      {user?.roles && Array.isArray(user.roles) ? user.roles.map((role) => (
                         <span
                           key={role.id}
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                         >
-                          {role.name}
+                          {role.name || role.code || 'Unknown Role'}
                         </span>
-                      ))}
+                      )) : (
+                        <span className="text-sm text-gray-500">No roles assigned</span>
+                      )}
                     </div>
                   </div>
                 </div>

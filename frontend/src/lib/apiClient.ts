@@ -254,6 +254,71 @@ class ApiClient {
     });
   }
 
+  async postFile<T>(
+    endpoint: string,
+    formData: FormData,
+    options?: RequestConfig
+  ): Promise<ApiResponse<T>> {
+    const url = `${this.baseURL}${endpoint}`;
+    const requestId = Math.random().toString(36).substring(7);
+    
+    try {
+      // For file uploads, we use a simpler approach without the complex header merging
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include', // Important for HTTP-only cookies
+        headers: {
+          'X-Request-ID': requestId,
+          // Add CSRF token if available
+          ...(this.getCSRFToken() && { 'x-csrf-token': this.getCSRFToken()! }),
+          // Explicitly don't set Content-Type - let browser set it with boundary
+        },
+        ...options,
+      });
+
+      // Handle different content types
+      let data: any;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType?.includes('application/json')) {
+        data = await response.json();
+      } else if (contentType?.includes('text/')) {
+        const text = await response.text();
+        data = { message: text };
+      } else {
+        data = {};
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: {
+            code: data.code || 'HTTP_ERROR',
+            message: data.error || data.message || `HTTP ${response.status}`,
+            statusCode: response.status,
+            correlationId: response.headers.get('x-correlation-id') || undefined,
+          }
+        };
+      }
+
+      return {
+        success: true,
+        data: data.data || data
+      };
+
+    } catch (error) {
+      console.error('File upload error:', error);
+      return {
+        success: false,
+        error: {
+          code: 'NETWORK_ERROR',
+          message: error instanceof Error ? error.message : 'Network error occurred'
+        }
+      };
+    }
+  }
+
   async put<T>(
     endpoint: string,
     data?: any,
@@ -500,6 +565,18 @@ export const useApi = () => {
       const { retryOnNetworkError, showOfflineMessage, ...requestOptions } = options || {};
       return makeRequest(
         () => apiClient.post<T>(endpoint, data, requestOptions),
+        endpoint,
+        { retryOnNetworkError, showOfflineMessage }
+      );
+    },
+
+    postFile: async <T>(endpoint: string, formData: FormData, options?: RequestConfig & {
+      retryOnNetworkError?: boolean;
+      showOfflineMessage?: boolean;
+    }) => {
+      const { retryOnNetworkError, showOfflineMessage, ...requestOptions } = options || {};
+      return makeRequest(
+        () => apiClient.postFile<T>(endpoint, formData, requestOptions),
         endpoint,
         { retryOnNetworkError, showOfflineMessage }
       );

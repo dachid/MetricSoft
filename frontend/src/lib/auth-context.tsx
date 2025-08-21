@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Try to validate existing session with the backend
-        const response = await fetch('/api/auth/me', {
+        const response = await fetch('/api/users/profile', {
           credentials: 'include', // Include HTTP-only cookies
           headers: {
             'x-csrf-token': token || '', // Send CSRF token in header
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: result.data.email,
               name: result.data.name,
               tenantId: result.data.tenantId,
-              roles: result.data.roles?.map((ur: any) => ur.role) || [],
+              roles: result.data.roles || [],
               profilePicture: result.data.profilePicture,
               createdAt: result.data.createdAt,
               updatedAt: result.data.updatedAt
@@ -217,10 +217,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: errorMessage }
       }
 
-      // Update local user data
-      const updatedUser = { ...user, ...userData } as AuthUser
-      localStorage.setItem('metricsoft_user', JSON.stringify(updatedUser))
-      setUser(updatedUser)
+      // Use the updated user data from the API response
+      if (result.data && (result.data as any).user) {
+        const updatedUser = (result.data as any).user as AuthUser
+        safeLocalStorage.setItem('metricsoft_user', JSON.stringify(updatedUser))
+        setUser(updatedUser)
+      } else {
+        // Fallback: merge the provided data with existing user
+        const updatedUser = { ...user, ...userData } as AuthUser
+        safeLocalStorage.setItem('metricsoft_user', JSON.stringify(updatedUser))
+        setUser(updatedUser)
+      }
       
       return { success: true }
     } catch (error: any) {
