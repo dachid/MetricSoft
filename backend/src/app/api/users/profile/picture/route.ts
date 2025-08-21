@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       data: {
         profilePicture: base64Image,
         updatedAt: new Date()
-      } as any // Cast to any because TypeScript doesn't know about profilePicture yet
+      }
     })
 
     return NextResponse.json({

@@ -16,7 +16,10 @@ export interface SessionUser {
   id: string;
   email: string;
   name?: string;
+  profilePicture?: string;
   tenantId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
   roles: Array<{
     id: string;
     code: string;
@@ -61,7 +64,7 @@ export async function createSecureSession(
       expiresAt,
       ipAddress,
       userAgent,
-    },
+    } as any, // Cast to any since schema might not be fully updated
   });
 
   return {
@@ -136,7 +139,10 @@ export async function validateSecureSession(
       id: userData.id,
       email: userData.email,
       name: userData.name || undefined,
+      profilePicture: (userData as any).profilePicture || undefined,
       tenantId: userData.tenantId,
+      createdAt: userData.createdAt,
+      updatedAt: userData.updatedAt,
       roles: userData.roles.map((ur: any) => ur.role),
     };
 

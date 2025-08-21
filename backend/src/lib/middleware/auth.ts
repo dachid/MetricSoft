@@ -6,7 +6,11 @@ export interface AuthResult {
   user?: {
     id: string;
     email: string;
+    name?: string;
+    profilePicture?: string;
     tenantId?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
     roles: Array<{
       id: string;
       code: string;
