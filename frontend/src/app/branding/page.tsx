@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/apiClient';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { Palette, Upload, Eye, Save } from 'lucide-react';
@@ -52,19 +53,15 @@ function BrandingContent() {
       if (!isSuperAdmin) return;
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
+        const response = await apiClient.get('/admin/tenants');
+        if (response.success && response.data) {
+          const tenants = Array.isArray(response.data) ? response.data : [];
+          setAvailableTenants(tenants);
+          if (tenants.length > 0 && !selectedTenantId) {
+            setSelectedTenantId(tenants[0].id);
           }
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          setAvailableTenants(result.data);
-          if (result.data.length > 0 && !selectedTenantId) {
-            setSelectedTenantId(result.data[0].id);
-          }
+        } else {
+          setErrorMessage('Failed to load tenants');
         }
       } catch (error) {
         console.error('Error loading tenants:', error);
@@ -95,24 +92,18 @@ function BrandingContent() {
       }
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        const response = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/settings`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await apiClient.get(`/tenants/${tenantIdToUse}/settings`);
         
-        if (response.ok) {
-          const result = await response.json();
-          setSettings(result.data);
+        if (response.success && response.data) {
+          setSettings(response.data as TenantSettings);
+          const settingsData = response.data as TenantSettings;
           setFormData({
-            primaryColor: result.data.branding?.primaryColor || '#3B82F6',
-            logoUrl: result.data.branding?.logoUrl || '',
-            companyName: result.data.branding?.companyName || ''
+            primaryColor: settingsData.branding?.primaryColor || '#3B82F6',
+            logoUrl: settingsData.branding?.logoUrl || '',
+            companyName: settingsData.branding?.companyName || ''
           });
         } else {
-          const error = await response.json();
-          setErrorMessage(error.error || 'Failed to load branding settings');
+          setErrorMessage(typeof response.error === 'string' ? response.error : response.error?.message || 'Failed to load branding settings');
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -143,26 +134,16 @@ function BrandingContent() {
     setSuccessMessage('');
     
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantIdToUse}/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          branding: formData
-        })
+      const response = await apiClient.put(`/tenants/${tenantIdToUse}/settings`, {
+        branding: formData
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        setSettings(result.data);
+      if (response.success && response.data) {
+        setSettings(response.data as TenantSettings);
         setSuccessMessage('Branding settings saved successfully!');
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
-        const error = await response.json();
-        setErrorMessage(error.error || 'Failed to save branding settings');
+        setErrorMessage(typeof response.error === 'string' ? response.error : response.error?.message || 'Failed to save branding settings');
       }
     } catch (error) {
       console.error('Error saving settings:', error);

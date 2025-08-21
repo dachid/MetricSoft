@@ -6,8 +6,6 @@ import { apiClient } from '@/lib/apiClient';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { HierarchyConfiguration } from '@/components/features/HierarchyConfiguration';
-import { OrganogramVisualization } from '@/components/features/OrganogramVisualization';
-import { StructureConfirmation } from '@/components/features/StructureConfirmation';
 import FiscalYearSelector from '@/components/FiscalYear/FiscalYearSelector';
 import { Building2, Calendar, AlertTriangle, ArrowRight } from 'lucide-react';
 
@@ -202,20 +200,6 @@ function OrganizationalStructureContent() {
         await loadOrgUnits(tenantIdToUse, fiscalYear.id);
       }
     }
-  };
-
-  // Handle confirmation update
-  const handleConfirmationUpdate = (updatedFiscalYear: FiscalYear) => {
-    console.log('🔍 Confirmation updated:', updatedFiscalYear);
-    setSelectedFiscalYear(updatedFiscalYear);
-    
-    // Update the fiscal year in the list
-    setFiscalYears(prev => 
-      prev.map(fy => fy.id === updatedFiscalYear.id ? updatedFiscalYear : fy)
-    );
-    
-    setSuccessMessage('Organizational structure confirmed successfully!');
-    setTimeout(() => setSuccessMessage(''), 5000);
   };
 
     console.log('🔍 Current render state:', {
@@ -427,35 +411,6 @@ function OrganizationalStructureContent() {
                     onError={setErrorMessage}
                   />
                 </div>
-              )}
-
-              {/* Organogram Visualization */}
-              {selectedFiscalYear && selectedFiscalYear._count.levelDefinitions > 0 && (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Organizational Structure Visualization
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Visual representation of your organizational hierarchy and KPI champion assignments.
-                    </p>
-                  </div>
-                  
-                  <OrganogramVisualization 
-                    orgUnits={orgUnits}
-                    fiscalYearName={selectedFiscalYear.name}
-                  />
-                </div>
-              )}
-
-              {/* Structure Confirmation */}
-              {selectedFiscalYear && selectedFiscalYear._count.levelDefinitions > 0 && (
-                <StructureConfirmation
-                  fiscalYear={selectedFiscalYear}
-                  orgUnits={orgUnits}
-                  tenantId={selectedTenantId || user?.tenantId || ''}
-                  onConfirmationUpdate={handleConfirmationUpdate}
-                />
               )}
 
               {/* Next Steps */}

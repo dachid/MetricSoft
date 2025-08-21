@@ -162,33 +162,20 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
       {/* Sidebar for desktop */}
       <div className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:border-r lg:border-gray-200 lg:pt-5 lg:pb-4 lg:bg-white lg:overflow-y-auto">
         <div className="flex items-center flex-shrink-0 px-6">
-          <h1 className="text-xl font-bold text-blue-600">MetricSoft</h1>
-        </div>
-
-        {/* User info - simplified for sidebar */}
-        <div className="mt-6 flex flex-col items-center px-6">
-          <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
-            {user?.profilePicture ? (
-              <img
-                src={user.profilePicture}
-                alt="Profile"
-                className="w-10 h-10 rounded-full object-cover"
-              />
-            ) : (
-              <span className="text-sm font-medium text-blue-600">
-                {user?.name?.[0] || user?.email?.[0] || 'U'}
-              </span>
-            )}
-          </div>
-          <div className="mt-2 text-center">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.name || user?.email}
-            </p>
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              MetricSoft
+            </h1>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="mt-8 flex-1 px-6">
+        <nav className="mt-6 flex-1 px-6">
           <div className="space-y-6">
             {/* Main Navigation */}
             <div className="space-y-1">
