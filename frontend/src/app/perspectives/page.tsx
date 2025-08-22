@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import { useTerminology } from '@/hooks/useTerminology'
 import { apiClient } from '@/lib/apiClient'
 import DashboardLayout from '@/components/Layout/DashboardLayout'
 import FiscalYearSelector from '@/components/FiscalYear/FiscalYearSelector'
@@ -40,6 +41,7 @@ interface FiscalYear {
 
 export default function PerspectivesPage() {
   const { user } = useAuth()
+  const { terminology } = useTerminology()
   const [selectedFiscalYear, setSelectedFiscalYear] = useState<FiscalYear | null>(null)
   const [perspectives, setPerspectives] = useState<Perspective[]>([])
   const [loading, setLoading] = useState(false)
@@ -244,7 +246,7 @@ export default function PerspectivesPage() {
   }
 
   return (
-    <DashboardLayout title="Perspectives Management" subtitle="Manage your organizational perspectives based on the Balanced Scorecard framework">
+        <DashboardLayout title={`${terminology.perspectives} Management`} subtitle={`Manage your organizational ${terminology.perspectivesPlural} based on the Balanced Scorecard framework`}>
       <div className="space-y-6">
         {/* Fiscal Year Selector */}
         <div className="bg-white rounded-lg shadow p-6">
@@ -261,7 +263,7 @@ export default function PerspectivesPage() {
           )}
         </div>
 
-        {/* Add New Perspective */}
+        {/* Add New Perspective Section */}
         {selectedFiscalYear && (
           <div className="bg-white rounded-lg shadow p-6">
             {/* Confirmation Status Warning */}
@@ -300,7 +302,7 @@ export default function PerspectivesPage() {
             )}
 
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Perspectives</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{terminology.perspectivesPlural}</h2>
               <button
                 onClick={() => setIsAdding(true)}
                 className={`inline-flex items-center px-4 py-2 text-white rounded-md transition-colors ${
@@ -311,14 +313,14 @@ export default function PerspectivesPage() {
                 disabled={loading || !isConfirmed}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Perspective
+                Add {terminology.perspectives}
               </button>
             </div>
 
             {/* Add Form */}
             {isAdding && isConfirmed && (
               <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Perspective</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Add New {terminology.perspectives}</h3>
                 <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
@@ -327,7 +329,7 @@ export default function PerspectivesPage() {
                       value={newPerspective.name}
                       onChange={(e) => setNewPerspective({ ...newPerspective, name: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., Innovation Perspective"
+                      placeholder={`e.g., Innovation ${terminology.perspectives}`}
                     />
                   </div>
                   <div>
@@ -336,7 +338,7 @@ export default function PerspectivesPage() {
                       value={newPerspective.description}
                       onChange={(e) => setNewPerspective({ ...newPerspective, description: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="What does this perspective measure?"
+                      placeholder={`What does this ${terminology.perspectives.toLowerCase()} measure?`}
                       rows={2}
                     />
                   </div>
@@ -367,7 +369,7 @@ export default function PerspectivesPage() {
                     disabled={loading}
                   >
                     <Save className="w-4 h-4 mr-1 inline" />
-                    Add Perspective
+                    Add {terminology.perspectives}
                   </button>
                 </div>
               </div>
@@ -490,7 +492,7 @@ export default function PerspectivesPage() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                   disabled={loading}
                 >
-                  {pendingAdd ? 'Add Perspective' : 'Confirm Changes'}
+                  {pendingAdd ? `Add ${terminology.perspectives}` : 'Confirm Changes'}
                 </button>
               </div>
             </div>

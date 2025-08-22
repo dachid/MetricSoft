@@ -5,17 +5,8 @@ import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/apiClient';
 
 interface TerminologyConfig {
-  kpis: string;
-  targets: string;
-  objectives: string;
-  initiatives: string;
-  perspectives: string;
-  performance: string;
-  metrics: string;
-  dashboard: string;
-  reports: string;
-  orgUnits: string;
-  departments: string;
+  // Raw database fields - no client-side logic
+  [key: string]: string;
 }
 
 interface UseTerminologyResult {
@@ -25,11 +16,15 @@ interface UseTerminologyResult {
 }
 
 const defaultTerminology: TerminologyConfig = {
-  kpis: 'KPIs',
-  targets: 'Targets',
-  objectives: 'Objectives',
-  initiatives: 'Initiatives',
-  perspectives: 'Perspectives',
+  // Database field names as they are stored
+  perspectives: 'Perspective',
+  perspectivesPlural: 'Perspectives',
+  objectives: 'Objective', 
+  objectivesPlural: 'Objectives',
+  kpis: 'KPI',
+  kpisPlural: 'KPIs',
+  targets: 'Target',
+  targetsPlural: 'Targets',
   performance: 'Performance',
   metrics: 'Metrics',
   dashboard: 'Dashboard',
@@ -55,6 +50,7 @@ export function useTerminology(): UseTerminologyResult {
         const response = await apiClient.get(`/tenants/${user.tenantId}/settings`);
         const settings = response.data as { terminology?: Partial<TerminologyConfig> };
         if (settings?.terminology) {
+          // Just merge the database values directly - no client-side logic
           return { ...defaultTerminology, ...settings.terminology };
         }
         return defaultTerminology;
@@ -69,7 +65,7 @@ export function useTerminology(): UseTerminologyResult {
   });
 
   return {
-    terminology: data || defaultTerminology,
+    terminology: (data || defaultTerminology) as TerminologyConfig,
     isLoading,
     error: error as Error | null
   };
