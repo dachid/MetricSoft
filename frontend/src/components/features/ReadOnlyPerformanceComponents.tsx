@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/auth-context'
+import { useTerminology } from '../../hooks/useTerminology'
 import { Card } from '../ui'
 import { CascadeVisualizer } from './CascadeVisualizer'
 import { apiClient } from '../../lib/apiClient'
@@ -37,15 +38,9 @@ export function ReadOnlyPerformanceComponents({
   confirmationInfo 
 }: ReadOnlyPerformanceComponentsProps) {
   const { user } = useAuth()
+  const { terminology } = useTerminology()
   const [isLoading, setIsLoading] = useState(true)
   const [orgLevels, setOrgLevels] = useState<OrgLevel[]>([])
-  const [terminology, setTerminology] = useState({
-    perspectives: 'Perspectives',
-    objectives: 'Objectives',
-    kpis: 'KPIs',
-    targets: 'Targets',
-    initiatives: 'Initiatives'
-  })
   const [componentsByLevel, setComponentsByLevel] = useState<Record<string, any>>({})
   const [cascadeRelationships, setCascadeRelationships] = useState<any[]>([])
 
@@ -85,13 +80,6 @@ export function ReadOnlyPerformanceComponents({
       }
       if (componentsData.cascadeRelationships) {
         setCascadeRelationships(componentsData.cascadeRelationships);
-      }
-
-      // Load tenant settings for terminology
-      const settingsResponse = await apiClient.get(`/tenants/${tenantId}/settings`);
-      const settingsData = settingsResponse.data as any;
-      if (settingsData.data?.terminology) {
-        setTerminology(settingsData.data.terminology);
       }
 
     } catch (error) {
@@ -161,10 +149,21 @@ export function ReadOnlyPerformanceComponents({
       {/* Terminology Display */}
       <Card title="Performance Terminology" subtitle="Custom terminology for this organization">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(terminology).map(([key, value]) => (
+          {Object.entries(terminology)
+            .filter(([key]) => {
+              // Only show actual performance component terminology
+              const performanceComponents = [
+                'perspectives', 'perspectivesPlural',
+                'objectives', 'objectivesPlural', 
+                'kpis', 'kpisPlural',
+                'targets', 'targetsPlural'
+              ];
+              return performanceComponents.includes(key);
+            })
+            .map(([key, value]) => (
             <div key={key} className="bg-gray-50 rounded-lg p-3 border">
               <div className="text-sm font-medium text-gray-600 capitalize">
-                {key}
+                {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
               </div>
               <div className="text-lg font-semibold text-gray-900">
                 {value}

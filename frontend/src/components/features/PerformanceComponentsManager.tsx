@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../lib/auth-context'
+import { useTerminology } from '../../hooks/useTerminology'
 import { Button, Card, ConfirmationDialog } from '../ui'
 import SaveConfirmationDialog from '../ui/SaveConfirmationDialog'
 import { TerminologyEditor } from './TerminologyEditor'
@@ -44,11 +45,12 @@ interface Perspective {
 
 export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplete }: PerformanceComponentsManagerProps) {
   const { user } = useAuth()
+  const { terminology } = useTerminology()
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [orgLevels, setOrgLevels] = useState<OrgLevel[]>([])
   const [perspectives, setPerspectives] = useState<Perspective[]>([])
-  const [terminology, setTerminology] = useState({
+  const [terminologyState, setTerminologyState] = useState({
     perspectives: 'Perspectives',
     objectives: 'Objectives',
     kpis: 'KPIs',
@@ -92,12 +94,22 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
       
       loadOrgLevels()
       loadPerformanceComponents()
-      loadTenantSettings()
       checkOrgStructureConfirmation()
     } else {
       console.log('PerformanceComponentsManager: Missing required data, not loading')
     }
   }, [fiscalYearId, tenantId])
+
+  // Initialize terminologyState from hook when it loads
+  useEffect(() => {
+    setTerminologyState({
+      perspectives: terminology.perspectivesPlural || 'Perspectives',
+      objectives: terminology.objectivesPlural || 'Objectives', 
+      kpis: terminology.kpisPlural || 'KPIs',
+      targets: terminology.targetsPlural || 'Targets',
+      initiatives: terminology.initiatives || 'Initiatives'
+    })
+  }, [terminology])
 
   const checkOrgStructureConfirmation = async () => {
     try {
@@ -184,22 +196,8 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
     }
   }
 
-  const loadTenantSettings = async () => {
-    try {
-      const response = await apiClient.get(`/tenants/${tenantId}/settings`);
-      const data = response.data as any;
-      console.log('Loaded tenant settings:', data);
-      
-      if (data.data?.terminology) {
-        setTerminology(data.data.terminology);
-      }
-    } catch (error) {
-      console.error('Error loading tenant settings:', error);
-    }
-  }
-
   const handleTerminologyChange = (changes: any) => {
-    setTerminology(prev => ({ ...prev, ...changes.terminology }))
+    setTerminologyState(prev => ({ ...prev, ...changes.terminology }))
   }
 
   const handlePerspectivesChange = (newPerspectives: Perspective[]) => {
@@ -277,7 +275,7 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
       // Save terminology to tenant settings first
       try {
         const settingsResponse = await apiClient.put(`/tenants/${tenantId}/settings`, {
-          terminology: terminology
+          terminology: terminologyState
         });
         console.log('Terminology saved successfully');
       } catch (error) {
@@ -438,7 +436,7 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
       <Card title={currentStepData.title} subtitle={currentStepData.subtitle}>
         {currentStep === 1 && (
           <TerminologyEditor 
-            terminology={terminology}
+            terminology={terminologyState}
             onChange={handleTerminologyChange}
           />
         )}
@@ -447,7 +445,7 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
           <ComponentBuilder 
             orgLevels={orgLevels}
             perspectives={[]} // No perspectives needed - use root level components
-            terminology={terminology}
+            terminology={terminologyState}
             componentsByLevel={componentsByLevel}
             onComponentsChange={handleComponentsChange}
           />
@@ -457,7 +455,7 @@ export function PerformanceComponentsManager({ fiscalYearId, tenantId, onComplet
           <CascadeVisualizer 
             orgLevels={orgLevels}
             componentsByLevel={componentsByLevel}
-            terminology={terminology}
+            terminology={terminologyState}
             onCascadeChange={setCascadeRelationships}
           />
         )}
