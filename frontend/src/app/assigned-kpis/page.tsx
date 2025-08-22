@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
+import { useTerminology } from '@/hooks/useTerminology';
 import { apiClient } from '@/lib/apiClient';
 
 interface OrganizationalUnit {
@@ -10,11 +11,6 @@ interface OrganizationalUnit {
   name: string;
   type: string;
   level: string;
-  levelDefinition?: {
-    name: string;
-    pluralName: string;
-    hierarchyLevel: number;
-  };
 }
 
 interface PerformanceComponent {
@@ -71,6 +67,7 @@ const statusLabels = {
 
 export default function AssignedKPIsPage() {
   const { user } = useAuth();
+  const { terminology } = useTerminology();
   const [assignedKpis, setAssignedKpis] = useState<AssignedKPI[]>([]);
   const [organizationalUnits, setOrganizationalUnits] = useState<OrganizationalUnit[]>([]);
   const [components, setComponents] = useState<PerformanceComponent[]>([]);
@@ -89,12 +86,10 @@ export default function AssignedKPIsPage() {
   });
 
   useEffect(() => {
-    if (user) {
-      fetchAssignedKPIs();
-      fetchOrganizationalUnits();
-      fetchOrganizationalComponents();
-    }
-  }, [selectedUnit, user]);
+    fetchAssignedKPIs();
+    fetchOrganizationalUnits();
+    fetchOrganizationalComponents();
+  }, [selectedUnit]);
 
   const fetchAssignedKPIs = async () => {
     try {
@@ -121,12 +116,10 @@ export default function AssignedKPIsPage() {
       if (response.success && response.data) {
         // Extract orgUnits from the response structure
         const orgUnits = (response.data as any).orgUnits || [];
-        
         // Filter to only include units where the user is a KPI champion
         const assignedUnits = orgUnits.filter((unit: any) => 
-          unit.kpiChampions?.some((champion: any) => champion.user?.id === user.id)
+          unit.kpiChampions?.some((champion: any) => champion.userId === user.id)
         );
-        
         setOrganizationalUnits(assignedUnits);
       }
     } catch (error) {
@@ -218,7 +211,7 @@ export default function AssignedKPIsPage() {
   }
 
   return (
-    <DashboardLayout title="Assigned KPIs" subtitle="Manage KPIs for organizational units where you serve as KPI Champion">
+    <DashboardLayout title={`Assigned ${terminology.kpis}`} subtitle={`Manage ${terminology.kpis} for organizational units where you serve as ${terminology.kpis} Champion`}>
       <div className="space-y-6">
         {/* Create KPI Button */}
         <div className="flex justify-end">
@@ -226,7 +219,7 @@ export default function AssignedKPIsPage() {
             onClick={openCreateModal}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Create Organizational KPI
+            Create Organizational {terminology.kpis.slice(0, -1)}
           </button>
         </div>
 
@@ -244,7 +237,7 @@ export default function AssignedKPIsPage() {
               <option value="">All Units</option>
               {organizationalUnits.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  {unit.name} ({unit.levelDefinition?.name || unit.type || 'Unknown'})
+                  {unit.name} ({unit.type})
                 </option>
               ))}
             </select>
@@ -338,7 +331,7 @@ export default function AssignedKPIsPage() {
             <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">
-                  {isViewMode ? 'Organizational KPI Details' : 'Create Organizational KPI'}
+                  {isViewMode ? `Organizational ${terminology.kpis.slice(0, -1)} Details` : `Create Organizational ${terminology.kpis.slice(0, -1)}`}
                 </h2>
                 <button
                   onClick={closeModal}
@@ -448,7 +441,7 @@ export default function AssignedKPIsPage() {
                       <option value="">Select an organizational unit</option>
                       {organizationalUnits.map((unit) => (
                         <option key={unit.id} value={unit.id}>
-                          {unit.name} ({unit.levelDefinition?.name || unit.type || 'Unknown'})
+                          {unit.name} ({unit.type})
                         </option>
                       ))}
                     </select>
@@ -516,7 +509,7 @@ export default function AssignedKPIsPage() {
                       type="submit"
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                     >
-                      Create KPI
+                      Create {terminology.kpis.slice(0, -1)}
                     </button>
                   </div>
                 </form>

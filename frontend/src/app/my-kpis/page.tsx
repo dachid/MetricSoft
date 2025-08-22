@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
+import { useTerminology } from '@/hooks/useTerminology';
 import { apiClient } from '@/lib/apiClient';
 
 interface PerformanceComponent {
@@ -51,6 +52,7 @@ const statusLabels = {
 
 export default function MyKPIsPage() {
   const { user } = useAuth();
+  const { terminology } = useTerminology();
   const [kpis, setKpis] = useState<KPI[]>([]);
   const [components, setComponents] = useState<PerformanceComponent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -162,7 +164,7 @@ export default function MyKPIsPage() {
   }
 
   return (
-    <DashboardLayout title="My KPIs" subtitle="Manage and track your individual Key Performance Indicators">
+    <DashboardLayout title={`My ${terminology.kpis}`} subtitle={`Manage and track your individual ${terminology.kpis}`}>
       <div className="space-y-6">
         {/* Create KPI Button */}
         <div className="flex justify-end">
@@ -170,7 +172,7 @@ export default function MyKPIsPage() {
             onClick={openCreateModal}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Create New KPI
+            Create New {terminology.kpis.slice(0, -1)}
           </button>
         </div>
 
@@ -253,7 +255,7 @@ export default function MyKPIsPage() {
             <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">
-                  {isViewMode ? 'KPI Details' : 'Create New KPI'}
+                  {isViewMode ? `${terminology.kpis.slice(0, -1)} Details` : `Create New ${terminology.kpis.slice(0, -1)}`}
                 </h2>
                 <button
                   onClick={closeModal}

@@ -26,7 +26,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Check if performance components are already confirmed
+    // Check if performance components are confirmed - they must be confirmed to allow perspective modifications
     const confirmation = await prisma.fiscalYearConfirmation.findUnique({
       where: {
         fiscalYearId_confirmationType: {
@@ -36,9 +36,9 @@ export async function PUT(
       }
     });
 
-    if (confirmation && !confirmation.canModify) {
+    if (!confirmation) {
       return NextResponse.json(
-        { error: 'Performance components are confirmed and cannot be modified' },
+        { error: 'Performance components must be confirmed before managing perspectives' },
         { status: 403 }
       );
     }
@@ -111,7 +111,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Check if performance components are already confirmed
+    // Check if performance components are confirmed - they must be confirmed to allow perspective modifications
     const confirmation = await prisma.fiscalYearConfirmation.findUnique({
       where: {
         fiscalYearId_confirmationType: {
@@ -121,9 +121,9 @@ export async function DELETE(
       }
     });
 
-    if (confirmation && !confirmation.canModify) {
+    if (!confirmation) {
       return NextResponse.json(
-        { error: 'Performance components are confirmed and cannot be modified' },
+        { error: 'Performance components must be confirmed before managing perspectives' },
         { status: 403 }
       );
     }

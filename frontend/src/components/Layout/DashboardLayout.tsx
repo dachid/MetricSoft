@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useTerminology } from '@/hooks/useTerminology';
 import { ChevronDown, User, LogOut } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -21,6 +22,7 @@ interface NavItem {
 
 export default function DashboardLayout({ children, title = "Dashboard", subtitle }: DashboardLayoutProps) {
   const { user, signOut } = useAuth();
+  const { terminology } = useTerminology();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -51,7 +53,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
 
   const navigation: NavItem[] = [
     {
-      name: 'Dashboard',
+      name: terminology.dashboard,
       href: '/dashboard',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,7 +62,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
       ),
     },
     {
-      name: 'Performance',
+      name: terminology.performance,
       href: '/performance',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,7 +71,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
       ),
     },
     {
-      name: 'Reports',
+      name: terminology.reports,
       href: '/reports',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -79,7 +81,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
     },
     // KPI Management Section (for employees)
     {
-      name: 'My KPIs',
+      name: `My ${terminology.kpis}`,
       href: '/my-kpis',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,7 +91,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
       roles: ['EMPLOYEE', 'LINE_MANAGER', 'ORGANIZATION_ADMIN'], // All users can have individual KPIs
     },
     {
-      name: 'Assigned KPIs',
+      name: `Assigned ${terminology.kpis}`,
       href: '/assigned-kpis',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -120,7 +122,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
       roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
     },
     {
-      name: 'Organizational Units',
+      name: terminology.orgUnits,
       href: '/organizational-units',
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,6 +137,17 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
+    },
+    {
+      name: terminology.perspectives,
+      href: '/perspectives',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
         </svg>
       ),
       roles: ['ORGANIZATION_ADMIN', 'SUPER_ADMIN'],
@@ -202,7 +215,7 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
             <div className="space-y-1">
               {navigation
                 .filter((item) => !item.roles || item.roles.length === 0 || user?.roles?.some(userRole => item.roles?.includes(userRole.code)))
-                .filter((item) => ['Dashboard', 'Performance', 'Reports'].includes(item.name))
+                .filter((item) => [terminology.dashboard, terminology.performance, terminology.reports].includes(item.name))
                 .map((item) => {
                   const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
                   const isActive = currentPath === item.href;
@@ -232,11 +245,11 @@ export default function DashboardLayout({ children, title = "Dashboard", subtitl
             {user?.roles?.some(userRole => ['EMPLOYEE', 'LINE_MANAGER', 'ORGANIZATION_ADMIN'].includes(userRole.code)) && (
               <div>
                 <div className="px-2 py-1 mb-2">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">KPI Management</h4>
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{terminology.kpis} Management</h4>
                 </div>
                 <div className="space-y-1">
                   {navigation
-                    .filter((item) => ['My KPIs', 'Assigned KPIs'].includes(item.name))
+                    .filter((item) => [`My ${terminology.kpis}`, `Assigned ${terminology.kpis}`].includes(item.name))
                     .filter((item) => user?.roles?.some(userRole => item.roles?.includes(userRole.code)))
                     .map((item) => {
                       const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
