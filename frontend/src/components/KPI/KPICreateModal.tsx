@@ -22,6 +22,7 @@ interface KPIObjective {
 interface CreateKPIRequest {
   name: string;
   description?: string;
+  code?: string;
   perspective: string;
   fiscalYearId: string;
   exitComponentId?: string;
@@ -46,6 +47,7 @@ interface KPICreateModalProps {
   onSuccess: (kpi: any) => void;
   fiscalYears: any[];
   currentFiscalYear: any;
+  currentOrgUnit?: any; // Added to get organizational context
 }
 
 
@@ -56,23 +58,44 @@ interface Perspective {
   fiscalYearId: string;
 }
 
+interface ExitComponent {
+  id: string;
+  componentName: string;
+  componentType: string;
+  orgLevelId: string;
+  fiscalYearId: string;
+}
+
 export default function KPICreateModal({
   isOpen,
   onClose,
   onSuccess,
   fiscalYears,
-  currentFiscalYear
+  currentFiscalYear,
+  currentOrgUnit
 }: KPICreateModalProps) {
   const { user } = useAuth();
   const { terminology } = useTerminology();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [exitComponents, setExitComponents] = useState<ExitComponent[]>([]);
   const [perspectives, setPerspectives] = useState<Perspective[]>([]);
+  const [previousLevelExitComponents, setPreviousLevelExitComponents] = useState<ExitComponent[]>([]);
+  const [filteredExitComponents, setFilteredExitComponents] = useState<ExitComponent[]>([]);
+  const [exitComponentSearchTerm, setExitComponentSearchTerm] = useState('');
+  const [showExitComponentDropdown, setShowExitComponentDropdown] = useState(false);
+  
+  // Objective auto-complete states
+  const [availableObjectives, setAvailableObjectives] = useState<string[]>([]);
+  const [filteredObjectives, setFilteredObjectives] = useState<string[]>([]);
+  const [objectiveSearchTerm, setObjectiveSearchTerm] = useState('');
+  const [showObjectiveDropdown, setShowObjectiveDropdown] = useState(false);
+  const [selectedObjective, setSelectedObjective] = useState('');
+  
   const [form, setForm] = useState<CreateKPIRequest>({
     name: '',
     description: '',
+    code: '',
     perspective: '',
     fiscalYearId: currentFiscalYear?.id || '',
     exitComponentId: '',
@@ -85,52 +108,214 @@ export default function KPICreateModal({
 
   useEffect(() => {
     if (isOpen) {
-      fetchExitComponents();
       fetchPerspectives();
+      fetchPreviousLevelExitComponents();
+      fetchObjectivesFromOrgUnit();
       resetForm();
     }
   }, [isOpen, currentFiscalYear]);
 
-  const fetchExitComponents = async () => {
-    try {
-      const response = await apiClient.get('/exit-components');
-      if (response.success && response.data) {
-        setExitComponents(Array.isArray(response.data) ? response.data : []);
-      }
-    } catch (error) {
-      console.error('Error fetching exit components:', error);
+  // Handle auto-complete filtering
+  useEffect(() => {
+    if (exitComponentSearchTerm.trim() === '') {
+      setFilteredExitComponents(previousLevelExitComponents);
+    } else {
+      const filtered = previousLevelExitComponents.filter(component =>
+        component.componentName.toLowerCase().includes(exitComponentSearchTerm.toLowerCase())
+      );
+      setFilteredExitComponents(filtered);
     }
+  }, [exitComponentSearchTerm, previousLevelExitComponents]);
+
+  // Handle objective auto-complete filtering
+  useEffect(() => {
+    if (objectiveSearchTerm.trim() === '') {
+      setFilteredObjectives(availableObjectives);
+    } else {
+      const filtered = availableObjectives.filter(objective =>
+        objective.toLowerCase().includes(objectiveSearchTerm.toLowerCase())
+      );
+      setFilteredObjectives(filtered);
+    }
+  }, [objectiveSearchTerm, availableObjectives]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.exit-component-autocomplete')) {
+        setShowExitComponentDropdown(false);
+      }
+    };
+
+    if (showExitComponentDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showExitComponentDropdown]);
+
+  // Close objective dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.objective-autocomplete')) {
+        setShowObjectiveDropdown(false);
+      }
+    };
+
+    if (showObjectiveDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showObjectiveDropdown]);
+
+  // Check if current org unit is not at Organization level
+  const shouldShowExitComponentAutoComplete = () => {
+    if (!currentOrgUnit) return false;
+    
+    const levelName = currentOrgUnit.levelDefinition?.name;
+    const parentId = currentOrgUnit.parentId;
+    
+    // Show the field if it's not at the Organization level and has a parent
+    return levelName !== 'Organization' && parentId !== null;
+  };
+
+  // Progressive field visibility helpers
+  const shouldShowKPIName = () => {
+    // Show KPI name after objective is selected
+    return selectedObjective && form.objectives.length > 0;
+  };
+
+  const shouldShowKPIDescription = () => {
+    // Show description after KPI name is entered
+    return shouldShowKPIName() && form.name.trim().length > 0;
+  };
+
+  const shouldShowKPICode = () => {
+    // Show code after description is entered
+    return shouldShowKPIDescription() && form.description && form.description.trim().length > 0;
+  };
+
+  const shouldShowRemainingFields = () => {
+    // Show remaining fields after all progressive fields are completed
+    return shouldShowKPICode() && form.code && form.code.trim().length > 0;
+  };
+
+  // Objective field should always be shown (required for all KPIs)
+  const shouldShowObjectiveField = () => {
+    return currentFiscalYear !== null; // Only show if fiscal year is available
+  };
+
+  const handleExitComponentSelect = (component: ExitComponent) => {
+    setExitComponentSearchTerm(component.componentName);
+    setForm({ ...form, exitComponentId: component.id });
+    setShowExitComponentDropdown(false);
+  };
+
+  const handleExitComponentInputChange = (value: string) => {
+    setExitComponentSearchTerm(value);
+    setShowExitComponentDropdown(true);
+    // Clear the selected component if the input doesn't match exactly
+    const exactMatch = previousLevelExitComponents.find(c => c.componentName === value);
+    if (!exactMatch) {
+      setForm({ ...form, exitComponentId: '' });
+    }
+  };
+
+  // Objective handling functions
+  const handleObjectiveSelect = (objective: string) => {
+    setSelectedObjective(objective);
+    setObjectiveSearchTerm(objective);
+    setShowObjectiveDropdown(false);
+    
+    // Update form with the selected objective
+    setForm(prevForm => {
+      const newCode = generateKPICode(prevForm.name, objective);
+      return {
+        ...prevForm,
+        objectives: [{ title: objective, description: '' }],
+        code: newCode
+      };
+    });
+  };
+
+  const handleObjectiveInputChange = (value: string) => {
+    setObjectiveSearchTerm(value);
+    setShowObjectiveDropdown(true);
+    
+    // Allow creating new objectives or selecting existing ones
+    if (value.trim()) {
+      setSelectedObjective(value.trim());
+      setForm(prevForm => {
+        const newCode = generateKPICode(prevForm.name, value.trim());
+        return {
+          ...prevForm,
+          objectives: [{ title: value.trim(), description: '' }],
+          code: newCode
+        };
+      });
+    } else {
+      setSelectedObjective('');
+      setForm(prevForm => ({
+        ...prevForm,
+        objectives: [],
+        code: ''
+      }));
+    }
+  };
+
+  // Auto-generate KPI code based on name and objective
+  const generateKPICode = (name: string, objective: string) => {
+    if (!name.trim()) return '';
+    
+    const nameWords = name.trim().split(' ').filter(word => word.length > 0);
+    const objectiveWords = objective.trim().split(' ').filter(word => word.length > 0);
+    
+    // Take first 2-3 letters from first few words of name
+    const nameAbbr = nameWords.slice(0, 2).map(word => 
+      word.substring(0, Math.min(3, word.length)).toUpperCase()
+    ).join('');
+    
+    // Take first 1-2 letters from first word of objective if available
+    const objAbbr = objectiveWords.length > 0 ? 
+      objectiveWords[0].substring(0, 2).toUpperCase() : '';
+    
+    // Add a random number for uniqueness
+    const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+    
+    return `${nameAbbr}${objAbbr}${randomSuffix}`;
+  };
+
+  // Handle KPI name change and auto-generate code
+  const handleKPINameChange = (name: string) => {
+    setForm(prevForm => {
+      const newCode = generateKPICode(name, selectedObjective);
+      return {
+        ...prevForm,
+        name: name,
+        code: newCode
+      };
+    });
   };
 
   const fetchPerspectives = async () => {
     try {
       if (!currentFiscalYear?.id || !user?.tenantId) {
-        console.log('Missing fiscal year or tenant ID:', { 
-          fiscalYearId: currentFiscalYear?.id, 
-          tenantId: user?.tenantId 
-        });
         setPerspectives([]);
         return;
       }
       
       const url = `/tenants/${user.tenantId}/fiscal-years/${currentFiscalYear.id}/perspectives`;
-      console.log('Fetching perspectives from:', url);
-      
       const response = await apiClient.get(url);
-      console.log('Perspectives API response:', response);
       
       if (response.data) {
         const perspectivesData = (response.data as any).perspectives;
-        console.log('Perspectives data:', perspectivesData);
         if (Array.isArray(perspectivesData)) {
           setPerspectives(perspectivesData);
-          console.log('Set perspectives:', perspectivesData);
         } else {
-          console.log('Perspectives data is not an array:', perspectivesData);
           setPerspectives([]);
         }
       } else {
-        console.log('No response data');
         setPerspectives([]);
       }
     } catch (error) {
@@ -139,10 +324,74 @@ export default function KPICreateModal({
     }
   };
 
+  const fetchPreviousLevelExitComponents = async () => {
+    try {
+      if (!currentFiscalYear?.id || !user?.tenantId || !currentOrgUnit?.level?.parentId) {
+        setPreviousLevelExitComponents([]);
+        return;
+      }
+      
+      const url = `/tenants/${user.tenantId}/fiscal-years/${currentFiscalYear.id}/performance-components?levelId=${currentOrgUnit.level.parentId}&componentType=EXIT`;
+      const response = await apiClient.get(url);
+      
+      if (response.data && Array.isArray(response.data)) {
+        setPreviousLevelExitComponents(response.data);
+        setFilteredExitComponents(response.data);
+      } else {
+        setPreviousLevelExitComponents([]);
+        setFilteredExitComponents([]);
+      }
+    } catch (error) {
+      console.error('Error fetching previous level exit components:', error);
+      setPreviousLevelExitComponents([]);
+      setFilteredExitComponents([]);
+    }
+  };
+
+  // Fetch existing objectives from KPIs in the same organizational unit
+  const fetchObjectivesFromOrgUnit = async () => {
+    try {
+      if (!user?.tenantId || !currentOrgUnit?.id || !currentFiscalYear?.id) {
+        setAvailableObjectives([]);
+        return;
+      }
+      
+      // Fetch KPIs for this organizational unit using assigned-kpis endpoint
+      const url = `/kpis/assigned-kpis?unitId=${currentOrgUnit.id}`;
+      const response = await apiClient.get(url);
+      
+      if (response.success && response.data && Array.isArray(response.data)) {
+        // Extract unique objective titles from existing KPIs
+        const objectives = new Set<string>();
+        response.data.forEach((kpi: any) => {
+          if (kpi.objectives && Array.isArray(kpi.objectives)) {
+            kpi.objectives.forEach((objective: any) => {
+              if (objective.title && objective.title.trim()) {
+                objectives.add(objective.title.trim());
+              }
+            });
+          }
+        });
+        
+        const objectiveArray = Array.from(objectives).sort();
+        setAvailableObjectives(objectiveArray);
+        setFilteredObjectives(objectiveArray);
+      } else {
+        setAvailableObjectives([]);
+        setFilteredObjectives([]);
+      }
+    } catch (error) {
+      console.error('Error fetching objectives from organizational unit:', error);
+      setAvailableObjectives([]);
+      setFilteredObjectives([]);
+    }
+  };
+
   const resetForm = () => {
     setForm({
       name: '',
       description: '',
+      code: '',
       perspective: '',
       fiscalYearId: currentFiscalYear?.id || '',
       exitComponentId: '',
@@ -152,6 +401,12 @@ export default function KPICreateModal({
       targets: [],
       objectives: []
     });
+    
+    // Reset objective-related states
+    setSelectedObjective('');
+    setObjectiveSearchTerm('');
+    setShowObjectiveDropdown(false);
+    setFilteredObjectives(availableObjectives);
     setError(null);
   };
 
@@ -170,6 +425,36 @@ export default function KPICreateModal({
 
     if (!form.perspective) {
       setError('Perspective is required');
+      return;
+    }
+
+    // Validate exit component if required
+    if (shouldShowExitComponentAutoComplete() && !form.exitComponentId) {
+      setError(`${terminology.exitComponent || 'Exit component'} is required`);
+      return;
+    }
+
+    // Validate objective - always required
+    if (!selectedObjective || !form.objectives.length) {
+      setError(`${terminology.objective || 'Objective'} is required`);
+      return;
+    }
+
+    // Validate KPI name
+    if (!form.name.trim()) {
+      setError('KPI name is required');
+      return;
+    }
+
+    // Validate KPI description
+    if (!form.description?.trim()) {
+      setError('KPI description is required');
+      return;
+    }
+
+    // Validate KPI code
+    if (!form.code?.trim()) {
+      setError('KPI code is required');
       return;
     }
 
@@ -344,6 +629,105 @@ export default function KPICreateModal({
                 )}
               </div>
 
+              {/* Exit Component Auto-complete - Third field (only for non-Organization levels) */}
+              {shouldShowExitComponentAutoComplete() && (
+                <div className="md:col-span-2 relative exit-component-autocomplete">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {terminology.exitComponent || 'Exit Component'} *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={exitComponentSearchTerm}
+                      onChange={(e) => handleExitComponentInputChange(e.target.value)}
+                      onFocus={() => setShowExitComponentDropdown(true)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder={`Search ${terminology.exitComponent?.toLowerCase() || 'exit component'}...`}
+                      required
+                      disabled={!currentFiscalYear || previousLevelExitComponents.length === 0}
+                    />
+                    
+                    {/* Dropdown */}
+                    {showExitComponentDropdown && filteredExitComponents.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {filteredExitComponents.map((component) => (
+                          <div
+                            key={component.id}
+                            onClick={() => handleExitComponentSelect(component)}
+                            className="px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900">{component.componentName}</div>
+                            <div className="text-sm text-gray-600">{component.componentType}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {previousLevelExitComponents.length === 0 && currentFiscalYear && (
+                    <p className="text-sm text-amber-600 mt-1">
+                      No {terminology.exitComponent?.toLowerCase() || 'exit components'} available from the previous level.
+                    </p>
+                  )}
+                  
+                  {!currentFiscalYear && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      Set up a fiscal year first to view available {terminology.exitComponent?.toLowerCase() || 'exit components'}.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Objective Auto-complete - Fourth field (always required) */}
+              {shouldShowObjectiveField() && (
+                <div className="md:col-span-2 relative objective-autocomplete">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {terminology.objective || 'Objective'} *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={objectiveSearchTerm}
+                    onChange={(e) => handleObjectiveInputChange(e.target.value)}
+                    onFocus={() => setShowObjectiveDropdown(true)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder={`Search or enter ${terminology.objective?.toLowerCase() || 'objective'}...`}
+                    required
+                    disabled={!currentFiscalYear}
+                  />
+                  
+                  {/* Dropdown */}
+                  {showObjectiveDropdown && filteredObjectives.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {filteredObjectives.map((objective, index) => (
+                        <div
+                          key={index}
+                          onClick={() => handleObjectiveSelect(objective)}
+                          className="px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="font-medium text-gray-900">{objective}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {availableObjectives.length === 0 && currentFiscalYear && (
+                  <p className="text-sm text-blue-600 mt-1">
+                    No existing {terminology.objective?.toLowerCase() || 'objectives'} found in this unit. You can create a new one by typing.
+                  </p>
+                )}
+                
+                {!currentFiscalYear && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Set up a fiscal year first to view available {terminology.objective?.toLowerCase() || 'objectives'}.
+                  </p>
+                )}
+              </div>
+              )}
+
+              {/* 5th Field: KPI Name - Progressive */}
+              {shouldShowKPIName() && (
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {terminology.kpis} Name *
@@ -351,47 +735,63 @@ export default function KPICreateModal({
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => handleKPINameChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter KPI name..."
                   required
                   disabled={!currentFiscalYear}
                 />
               </div>
+              )}
 
+              {/* 6th Field: KPI Description - Progressive */}
+              {shouldShowKPIDescription() && (
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
+                  Description *
                 </label>
                 <textarea
-                  value={form.description}
+                  value={form.description || ''}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   rows={3}
                   placeholder="Describe what this KPI measures..."
+                  required
                   disabled={!currentFiscalYear}
                 />
               </div>
+              )}
 
-              <div>
+              {/* 7th Field: KPI Code - Progressive with auto-generation */}
+              {shouldShowKPICode() && (
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Exit Component
+                  KPI Code *
+                  <span className="text-xs text-gray-500 ml-2">(Auto-generated, can be edited)</span>
                 </label>
-                <select
-                  value={form.exitComponentId}
-                  onChange={(e) => setForm({ ...form, exitComponentId: e.target.value })}
+                <input
+                  type="text"
+                  value={form.code || ''}
+                  onChange={(e) => setForm({ ...form, code: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="KPI code (auto-generated)..."
+                  required
                   disabled={!currentFiscalYear}
-                >
-                  <option value="">Select an exit component (optional)</option>
-                  {exitComponents.map((component) => (
-                    <option key={component.id} value={component.id}>
-                      {component.name}
-                    </option>
-                  ))}
-                </select>
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This code is auto-generated from the KPI name and objective but can be customized.
+                </p>
               </div>
+              )}
+            </div>
+          </div>
 
+          {/* Remaining fields show only after all progressive fields are completed */}
+          {shouldShowRemainingFields() && (
+          <>
+          <div className="mb-8">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Additional Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Due Date
@@ -638,6 +1038,8 @@ export default function KPICreateModal({
               ))}
             </div>
           </div>
+          </>
+          )}
 
           {/* Form Actions */}
           <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
@@ -650,7 +1052,7 @@ export default function KPICreateModal({
             </button>
             <button
               type="submit"
-              disabled={loading || form.targets.length === 0 || !currentFiscalYear || !form.perspective}
+              disabled={loading || form.targets.length === 0 || !currentFiscalYear || !form.perspective || (shouldShowExitComponentAutoComplete() && !form.exitComponentId) || !selectedObjective || !form.name.trim() || !form.description?.trim() || !form.code?.trim()}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : `Create ${terminology.kpis}`}

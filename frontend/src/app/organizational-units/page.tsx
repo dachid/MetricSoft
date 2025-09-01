@@ -81,6 +81,7 @@ interface OrgUnitFormData {
   name: string
   code: string
   description: string
+  parentId?: string  // Add parentId to form data
   kpiChampionIds: string[]
 }
 
@@ -113,6 +114,7 @@ export default function OrganizationalUnitsPage() {
     name: '',
     code: '',
     description: '',
+    parentId: undefined,  // Add parentId to initial form data
     kpiChampionIds: []
   })
   const [saving, setSaving] = useState(false)
@@ -597,6 +599,7 @@ export default function OrganizationalUnitsPage() {
       name: unit.name,
       code: unit.code,
       description: unit.description || '',
+      parentId: unit.parentId || undefined,  // Include parentId in edit form
       kpiChampionIds: unit.kpiChampions.map(champion => champion.user.id)
     })
     setSelectedChampions(unit.kpiChampions.map(champion => champion.user))
@@ -651,6 +654,7 @@ export default function OrganizationalUnitsPage() {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         description: formData.description.trim() || undefined,
+        parentId: formData.parentId || undefined,  // Include parentId in update payload
         kpiChampionIds: formData.kpiChampionIds
       }
 
@@ -688,6 +692,7 @@ export default function OrganizationalUnitsPage() {
       name: '',
       code: '',
       description: '',
+      parentId: undefined,  // Add parentId to reset form
       kpiChampionIds: []
     })
     setSelectedChampions([])
@@ -738,6 +743,7 @@ export default function OrganizationalUnitsPage() {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         description: formData.description.trim() || undefined,
+        parentId: formData.parentId || undefined,  // Include parentId in payload
         kpiChampionIds: formData.kpiChampionIds
       }
 
@@ -769,6 +775,19 @@ export default function OrganizationalUnitsPage() {
   const isOrganizationLevel = () => {
     const selectedLevel = levelDefinitions.find(level => level.id === formData.levelDefinitionId)
     return selectedLevel?.code === 'ORGANIZATION'
+  }
+
+  // Get potential parent units (units at higher hierarchy levels)
+  const getPotentialParents = () => {
+    const selectedLevel = levelDefinitions.find(level => level.id === formData.levelDefinitionId)
+    if (!selectedLevel || selectedLevel.code === 'ORGANIZATION') {
+      return [] // Organization level has no parent
+    }
+    
+    // Get units at higher levels (lower hierarchy numbers)
+    return orgUnits.filter(unit => 
+      unit.levelDefinition.hierarchyLevel < selectedLevel.hierarchyLevel
+    )
   }
 
   const getCurrentOrganizationName = () => {
@@ -997,6 +1016,39 @@ export default function OrganizationalUnitsPage() {
                       </p>
                     )}
                   </div>
+
+                  {/* Parent Unit (only show for non-Organization levels) */}
+                  {!isOrganizationLevel() && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Parent Unit {getPotentialParents().length > 0 ? '*' : ''}
+                      </label>
+                      <select
+                        required={getPotentialParents().length > 0}
+                        value={formData.parentId || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, parentId: e.target.value || undefined }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={getPotentialParents().length === 0}
+                      >
+                        <option value="">
+                          {getPotentialParents().length === 0 
+                            ? "No parent units available" 
+                            : "Select parent unit..."
+                          }
+                        </option>
+                        {getPotentialParents().map((unit) => (
+                          <option key={unit.id} value={unit.id}>
+                            {unit.name} ({unit.levelDefinition.name})
+                          </option>
+                        ))}
+                      </select>
+                      {getPotentialParents().length === 0 && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          Create higher-level units first to enable parent selection.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Unit Name */}
                   <div>

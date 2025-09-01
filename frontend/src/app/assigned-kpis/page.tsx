@@ -208,7 +208,6 @@ export default function AssignedKPIsPage() {
   // State management
   const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
   const [kpis, setKpis] = useState<KPI[]>([]);
-  const [exitComponents, setExitComponents] = useState<ExitComponent[]>([]);
   const [fiscalYears, setFiscalYears] = useState<any[]>([]);
   const [currentFiscalYear, setCurrentFiscalYear] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -246,7 +245,6 @@ export default function AssignedKPIsPage() {
   useEffect(() => {
     fetchAssignedOrgUnits();
     fetchFiscalYears();
-    fetchExitComponents();
   }, [user?.tenantId, user?.id]);
 
   useEffect(() => {
@@ -322,19 +320,6 @@ export default function AssignedKPIsPage() {
       }
     } catch (error) {
       console.error('Error fetching fiscal years:', error);
-    }
-  };
-
-  const fetchExitComponents = async () => {
-    try {
-      if (!user?.tenantId) return;
-      
-      const response = await apiClient.get('/exit-components');
-      if (response.success && response.data) {
-        setExitComponents(Array.isArray(response.data) ? response.data : []);
-      }
-    } catch (error) {
-      console.error('Error fetching exit components:', error);
     }
   };
 
@@ -729,6 +714,7 @@ export default function AssignedKPIsPage() {
           }}
           fiscalYears={fiscalYears}
           currentFiscalYear={currentFiscalYear}
+          currentOrgUnit={selectedOrgUnitForKPI}
         />
 
         <KPIViewModal

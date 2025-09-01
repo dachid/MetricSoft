@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authMiddleware } from '@/lib/middleware/auth';
 import { createApiRoute, AuthenticationError, AuthorizationError, ValidationError, DatabaseError, NotFoundError } from '@/lib/middleware';
+import { enforceParentHierarchy } from '@/lib/enforce-parent-hierarchy';
 
 // GET /api/tenants/[id]/org-units - Get all organizational units for a tenant
 export const GET = createApiRoute(async (
@@ -177,7 +178,7 @@ export const POST = createApiRoute(async (
     const { 
       name, 
       levelDefinitionId, 
-      parentId, 
+      parentId: requestedParentId, 
       description, 
       code: providedCode,
       metadata,
@@ -185,6 +186,9 @@ export const POST = createApiRoute(async (
       fiscalYearId,
       kpiChampionIds = []
     } = body;
+
+    // Initialize parentId as a variable that can be modified
+    let parentId = requestedParentId;
 
     // Validation
     if (!name || !levelDefinitionId) {
@@ -284,6 +288,9 @@ export const POST = createApiRoute(async (
       if (parent.levelDefinition.hierarchyLevel >= levelDef.hierarchyLevel) {
         throw new ValidationError('Parent must be at a higher organizational level');
       }
+    } else {
+      // Auto-enforce parent hierarchy for non-organization units
+      parentId = await enforceParentHierarchy(tenantId, levelDefinitionId, parentId);
     }
 
     // Get next sort order for this level
