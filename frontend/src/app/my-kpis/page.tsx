@@ -172,7 +172,7 @@ export default function MyKPIsPage() {
             onClick={openCreateModal}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Create New {terminology.kpis.slice(0, -1)}
+            Create New {terminology.kpis}
           </button>
         </div>
 
@@ -255,7 +255,7 @@ export default function MyKPIsPage() {
             <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">
-                  {isViewMode ? `${terminology.kpis.slice(0, -1)} Details` : `Create New ${terminology.kpis.slice(0, -1)}`}
+                  {isViewMode ? `${terminology.kpis} Details` : `Create New ${terminology.kpis}`}
                 </h2>
                 <button
                   onClick={closeModal}

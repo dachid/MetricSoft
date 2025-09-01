@@ -23,6 +23,14 @@ model User {
   kpiChampionAssignments OrgUnitKpiChampion[]
   individualKpis         IndividualKPI[]
   assignedKpis           OrganizationalKPI[]     @relation("AssignedKpis")
+  
+  // New KPI System Relations
+  evaluatedKPIs          KPI[]                   @relation("EvaluatedKPIs")
+  createdKPIs            KPI[]                   @relation("CreatedKPIs")
+  createdObjectives      KPIObjective[]          @relation("CreatedObjectives")
+  sharedKPIs             KPIShare[]              @relation("SharedKPIs")
+  sharedByKPIs           KPIShare[]              @relation("SharedByKPIs")
+  kpiAudits              KPIAuditLog[]           @relation("KPIAudits")
 
   @@map("users")
 }
@@ -43,6 +51,8 @@ model Tenant {
   users                  UserRole[]
   ownerUsers             User[]
   performanceComponents  PerformanceComponent[]
+  kpis                   KPI[]
+  kpiObjectives          KPIObjective[]
 
   @@map("tenants")
 }
@@ -163,6 +173,8 @@ model OrgUnit {
   userAssignments   UserOrgAssignment[]
   kpiChampions      OrgUnitKpiChampion[]
   organizationalKpis OrganizationalKPI[]
+  kpis              KPI[]
+  kpiObjectives     KPIObjective[]
 
   @@unique([fiscalYearId, levelDefinitionId, code])
   @@map("org_units")
@@ -201,6 +213,8 @@ model FiscalYear {
   orgUnits               OrgUnit[]
   cascadeRelationships   PerformanceCascadeRelationship[]
   componentTemplates     PerformanceComponentTemplate[]
+  kpis                   KPI[]
+  kpiObjectives          KPIObjective[]
 
   @@unique([tenantId, name])
   @@map("fiscal_years")
@@ -260,6 +274,7 @@ model FiscalYearPerspective {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   fiscalYear    FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  kpis          KPI[]
 
   @@unique([fiscalYearId, code])
   @@unique([fiscalYearId, sequenceOrder])
@@ -377,4 +392,140 @@ model OrganizationalKPI {
   assignedBy             User                  @relation("AssignedKpis", fields: [assignedById], references: [id], onDelete: Cascade)
 
   @@map("organizational_kpis")
+}
+
+enum TargetType {
+  NUMERIC
+  STATUS
+  PERCENTAGE
+}
+
+enum TargetDirection {
+  INCREASING
+  DECREASING
+  N_A
+}
+
+enum FrequencyType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  BIANNUAL
+  ANNUAL
+}
+
+enum KPIStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+model KPI {
+  id                String            @id @default(cuid())
+  tenantId          String
+  fiscalYearId      String
+  orgUnitId         String
+  perspectiveId     String?
+  parentObjectiveId String?
+  name              String
+  description       String?
+  code              String
+  evaluatorId       String
+  createdById       String
+  isRecurring       Boolean           @default(false)
+  frequency         FrequencyType?
+  dueDate           DateTime?
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fiscalYear        FiscalYear        @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  orgUnit           OrgUnit           @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  perspective       FiscalYearPerspective? @relation(fields: [perspectiveId], references: [id], onDelete: SetNull)
+  parentObjective   KPIObjective?     @relation(fields: [parentObjectiveId], references: [id], onDelete: SetNull)
+  evaluator         User              @relation("EvaluatedKPIs", fields: [evaluatorId], references: [id], onDelete: Cascade)
+  createdBy         User              @relation("CreatedKPIs", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  target            KPITarget?
+  shares            KPIShare[]
+  auditLogs         KPIAuditLog[]
+
+  @@unique([tenantId, fiscalYearId, code])
+  @@map("kpis")
+}
+
+model KPITarget {
+  id              String          @id @default(cuid())
+  kpiId           String          @unique
+  currentValue    String          @default("0")
+  targetValue     String
+  targetType      TargetType      @default(NUMERIC)
+  targetLabel     String?
+  targetDirection TargetDirection @default(INCREASING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  kpi             KPI             @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+
+  @@map("kpi_targets")
+}
+
+model KPIObjective {
+  id                    String     @id @default(cuid())
+  tenantId              String
+  fiscalYearId          String
+  orgUnitId             String
+  name                  String
+  description           String?
+  parentExitComponentId String?
+  createdById           String
+  isActive              Boolean    @default(true)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  
+  tenant                Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fiscalYear            FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  orgUnit               OrgUnit    @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  createdBy             User       @relation("CreatedObjectives", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  kpis                  KPI[]
+
+  @@map("kpi_objectives")
+}
+
+model KPIShare {
+  id               String   @id @default(cuid())
+  kpiId            String
+  sharedWithUserId String
+  sharedById       String
+  canEdit          Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  kpi              KPI      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  sharedWithUser   User     @relation("SharedKPIs", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
+  sharedBy         User     @relation("SharedByKPIs", fields: [sharedById], references: [id], onDelete: Cascade)
+
+  @@unique([kpiId, sharedWithUserId])
+  @@map("kpi_shares")
+}
+
+model KPIAuditLog {
+  id        String   @id @default(cuid())
+  kpiId     String
+  userId    String
+  action    String
+  oldValues Json?
+  newValues Json?
+  createdAt DateTime @default(now())
+  
+  kpi       KPI      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  user      User     @relation("KPIAudits", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([kpiId])
+  @@map("kpi_audit_logs")
 }

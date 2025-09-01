@@ -50,7 +50,19 @@ export default function PerspectiveManager({ onTerminologyUpdate }: PerspectiveM
 
   useEffect(() => {
     if (terminology) {
-      setFormData(terminology);
+      setFormData({
+        kpis: terminology.kpis || '',
+        targets: terminology.targets || '',
+        objectives: terminology.objectives || '',
+        initiatives: terminology.initiatives || '',
+        perspectives: terminology.perspectives || '',
+        performance: terminology.performance || '',
+        metrics: terminology.metrics || '',
+        dashboard: terminology.dashboard || '',
+        reports: terminology.reports || '',
+        orgUnits: terminology.orgUnits || '',
+        departments: terminology.departments || ''
+      });
     }
   }, [terminology]);
 
@@ -84,7 +96,21 @@ export default function PerspectiveManager({ onTerminologyUpdate }: PerspectiveM
   };
 
   const handleReset = () => {
-    setFormData(terminology);
+    if (terminology) {
+      setFormData({
+        kpis: terminology.kpis || '',
+        targets: terminology.targets || '',
+        objectives: terminology.objectives || '',
+        initiatives: terminology.initiatives || '',
+        perspectives: terminology.perspectives || '',
+        performance: terminology.performance || '',
+        metrics: terminology.metrics || '',
+        dashboard: terminology.dashboard || '',
+        reports: terminology.reports || '',
+        orgUnits: terminology.orgUnits || '',
+        departments: terminology.departments || ''
+      });
+    }
     setIsEditing(false);
   };
 
