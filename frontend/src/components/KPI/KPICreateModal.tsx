@@ -6,12 +6,11 @@ import { useTerminology } from '@/hooks/useTerminology';
 import { apiClient } from '@/lib/apiClient';
 
 interface KPITarget {
-  type: 'NUMERIC' | 'STATUS' | 'PERCENTAGE';
-  direction: 'INCREASE' | 'DECREASE' | 'MAINTAIN';
-  numericValue?: number;
-  unit?: string;
-  statusValue?: string;
-  percentageValue?: number;
+  currentValue: string | number;
+  targetValue: string | number;
+  targetType: 'NUMERIC' | 'STATUS' | 'PERCENTAGE';
+  targetLabel: string; // Unit like "Naira", "Persons", "Dollars", "Percent", or "N/A"
+  targetDirection: 'INCREASING' | 'DECREASING' | 'N/A';
 }
 
 interface KPIObjective {
@@ -23,11 +22,12 @@ interface CreateKPIRequest {
   name: string;
   description?: string;
   code?: string;
+  evaluatorId?: string;
   perspective: string;
   fiscalYearId: string;
   exitComponentId?: string;
   isRecurring: boolean;
-  frequency?: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
+  frequency?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'BIANNUAL' | 'ANNUALLY';
   dueDate?: string;
   targets: KPITarget[];
   objectives: KPIObjective[];
@@ -91,26 +91,80 @@ export default function KPICreateModal({
   const [objectiveSearchTerm, setObjectiveSearchTerm] = useState('');
   const [showObjectiveDropdown, setShowObjectiveDropdown] = useState(false);
   const [selectedObjective, setSelectedObjective] = useState('');
+
+  // Evaluator auto-complete states
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
+  const [evaluatorSearchTerm, setEvaluatorSearchTerm] = useState('');
+  const [showEvaluatorDropdown, setShowEvaluatorDropdown] = useState(false);
+  const [selectedEvaluator, setSelectedEvaluator] = useState<any>(null);
   
   const [form, setForm] = useState<CreateKPIRequest>({
     name: '',
     description: '',
     code: '',
+    evaluatorId: '',
     perspective: '',
     fiscalYearId: currentFiscalYear?.id || '',
     exitComponentId: '',
     isRecurring: false,
     frequency: undefined,
     dueDate: '',
-    targets: [],
+    targets: [{
+      targetType: 'NUMERIC',
+      targetDirection: 'INCREASING',
+      currentValue: '',
+      targetValue: '',
+      targetLabel: ''
+    }],
     objectives: []
   });
 
+  const fetchUsers = async () => {
+    console.log('🔍 [DEBUG] fetchUsers called with user:', user);
+    
+    if (!user?.tenantId) {
+      console.error('🔍 [DEBUG] No tenant ID available, user:', user);
+      return;
+    }
+
+    console.log('🔍 [DEBUG] Fetching users for tenant:', user.tenantId);
+
+    try {
+      const response = await apiClient.get(`/tenants/${user.tenantId}/users/evaluators`);
+      
+      console.log('🔍 [DEBUG] Users API response:', response);
+      
+      if (response.data) {
+        const data = response.data as any;
+        console.log('🔍 [DEBUG] Response data:', data);
+        
+        // The response structure is { users: Array } not { success: true, data: { users: Array } }
+        if (data.users && Array.isArray(data.users)) {
+          console.log('🔍 [DEBUG] Users found:', data.users);
+          setAvailableUsers(data.users);
+          setFilteredUsers(data.users);
+        } else {
+          console.log('🔍 [DEBUG] No users in response, data structure:', {
+            hasUsers: !!data.users,
+            isArray: Array.isArray(data.users),
+            dataKeys: Object.keys(data),
+            data: data
+          });
+        }
+      }
+    } catch (error) {
+      console.error('🔍 [DEBUG] Error fetching users:', error);
+    }
+  };
+
   useEffect(() => {
+    console.log('🔍 [DEBUG] Modal opened, isOpen:', isOpen, 'currentFiscalYear:', currentFiscalYear, 'user:', user);
     if (isOpen) {
       fetchPerspectives();
       fetchPreviousLevelExitComponents();
       fetchObjectivesFromOrgUnit();
+      fetchUsers();
       resetForm();
     }
   }, [isOpen, currentFiscalYear]);
@@ -138,6 +192,19 @@ export default function KPICreateModal({
       setFilteredObjectives(filtered);
     }
   }, [objectiveSearchTerm, availableObjectives]);
+
+  // Handle evaluator auto-complete filtering
+  useEffect(() => {
+    if (evaluatorSearchTerm.trim() === '') {
+      setFilteredUsers(availableUsers);
+    } else {
+      const filtered = availableUsers.filter(user =>
+        user.name.toLowerCase().includes(evaluatorSearchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(evaluatorSearchTerm.toLowerCase())
+      );
+      setFilteredUsers(filtered);
+    }
+  }, [evaluatorSearchTerm, availableUsers]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -169,6 +236,21 @@ export default function KPICreateModal({
     }
   }, [showObjectiveDropdown]);
 
+  // Close evaluator dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.evaluator-autocomplete')) {
+        setShowEvaluatorDropdown(false);
+      }
+    };
+
+    if (showEvaluatorDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showEvaluatorDropdown]);
+
   // Check if current org unit is not at Organization level
   const shouldShowExitComponentAutoComplete = () => {
     if (!currentOrgUnit) return false;
@@ -196,9 +278,22 @@ export default function KPICreateModal({
     return shouldShowKPIDescription() && form.description && form.description.trim().length > 0;
   };
 
+  const shouldShowEvaluator = () => {
+    // Show evaluator after KPI code is entered
+    const result = shouldShowKPICode() && form.code && form.code.trim().length > 0;
+    console.log('🔍 [DEBUG] shouldShowEvaluator:', {
+      shouldShowKPICode: shouldShowKPICode(),
+      formCode: form.code,
+      result: result,
+      availableUsersCount: availableUsers.length,
+      filteredUsersCount: filteredUsers.length
+    });
+    return result;
+  };
+
   const shouldShowRemainingFields = () => {
-    // Show remaining fields after all progressive fields are completed
-    return shouldShowKPICode() && form.code && form.code.trim().length > 0;
+    // Show remaining fields after all progressive fields are completed, including evaluator
+    return shouldShowEvaluator() && form.evaluatorId && form.evaluatorId.trim().length > 0;
   };
 
   // Objective field should always be shown (required for all KPIs)
@@ -395,10 +490,17 @@ export default function KPICreateModal({
       perspective: '',
       fiscalYearId: currentFiscalYear?.id || '',
       exitComponentId: '',
+      evaluatorId: '',
       isRecurring: false,
       frequency: undefined,
       dueDate: '',
-      targets: [],
+      targets: [{
+        targetType: 'NUMERIC',
+        targetDirection: 'INCREASING',
+        currentValue: '',
+        targetValue: '',
+        targetLabel: ''
+      }],
       objectives: []
     });
     
@@ -407,7 +509,33 @@ export default function KPICreateModal({
     setObjectiveSearchTerm('');
     setShowObjectiveDropdown(false);
     setFilteredObjectives(availableObjectives);
+    
+    // Reset evaluator-related states
+    setSelectedEvaluator(null);
+    setEvaluatorSearchTerm('');
+    setShowEvaluatorDropdown(false);
+    setFilteredUsers(availableUsers);
+    
     setError(null);
+  };
+
+  const handleEvaluatorInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEvaluatorSearchTerm(value);
+    setShowEvaluatorDropdown(true);
+    
+    // If user clears the input, clear the selected evaluator
+    if (value === '' && selectedEvaluator) {
+      setSelectedEvaluator(null);
+      setForm({ ...form, evaluatorId: '' });
+    }
+  };
+
+  const handleEvaluatorSelect = (user: any) => {
+    setSelectedEvaluator(user);
+    setForm({ ...form, evaluatorId: user.id });
+    setEvaluatorSearchTerm(user.name);
+    setShowEvaluatorDropdown(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -458,8 +586,21 @@ export default function KPICreateModal({
       return;
     }
 
-    if (form.targets.length === 0) {
-      setError('Please add at least one target');
+    // Validate evaluator
+    if (!form.evaluatorId?.trim()) {
+      setError('Evaluator assignment is required');
+      return;
+    }
+
+    // Validate target
+    const target = form.targets[0];
+    if (!target.targetValue || (!target.currentValue && target.currentValue !== 0)) {
+      setError('Target current value and target value are required');
+      return;
+    }
+
+    if (!target.targetLabel && target.targetType !== 'STATUS') {
+      setError('Target label is required');
       return;
     }
 
@@ -480,32 +621,9 @@ export default function KPICreateModal({
     }
   };
 
-  const addTarget = () => {
-    setForm({
-      ...form,
-      targets: [
-        ...form.targets,
-        {
-          type: 'NUMERIC',
-          direction: 'INCREASE',
-          numericValue: 0,
-          unit: ''
-        }
-      ]
-    });
-  };
-
-  const updateTarget = (index: number, updates: Partial<KPITarget>) => {
-    const newTargets = [...form.targets];
-    newTargets[index] = { ...newTargets[index], ...updates };
-    setForm({ ...form, targets: newTargets });
-  };
-
-  const removeTarget = (index: number) => {
-    setForm({
-      ...form,
-      targets: form.targets.filter((_, i) => i !== index)
-    });
+  const updateTarget = (updates: Partial<KPITarget>) => {
+    const updatedTarget = { ...form.targets[0], ...updates };
+    setForm({ ...form, targets: [updatedTarget] });
   };
 
   const addObjective = () => {
@@ -783,34 +901,200 @@ export default function KPICreateModal({
                 </p>
               </div>
               )}
+
+              {/* 8th Field: Assign Evaluator - Progressive */}
+              {shouldShowEvaluator() && (
+              <div className="md:col-span-2 relative">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assign Evaluator *
+                </label>
+                <div className="relative evaluator-autocomplete">
+                  <input
+                    type="text"
+                    value={evaluatorSearchTerm}
+                    onChange={handleEvaluatorInputChange}
+                    onFocus={() => setShowEvaluatorDropdown(true)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Search for an evaluator..."
+                    required
+                    disabled={!currentFiscalYear}
+                  />
+                  
+                  {showEvaluatorDropdown && filteredUsers.length > 0 && (
+                    <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto mt-1">
+                      {filteredUsers.map((user) => (
+                        <div
+                          key={user.id}
+                          onClick={() => handleEvaluatorSelect(user)}
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                        >
+                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                          <div className="text-xs text-gray-500">{user.email}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Select who will evaluate this KPI.
+                </p>
+              </div>
+              )}
             </div>
           </div>
 
           {/* Remaining fields show only after all progressive fields are completed */}
           {shouldShowRemainingFields() && (
           <>
+          {/* Single Target */}
           <div className="mb-8">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Additional Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Due Date
-                </label>
-                <input
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  disabled={!currentFiscalYear}
-                />
+            <div className="mb-4">
+              <h3 className="text-lg font-medium text-gray-900">{terminology.targets || 'Target'} *</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Define a single measurable target for this KPI.
+              </p>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg border">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Current Value */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Value
+                  </label>
+                  {form.targets[0].targetType === 'NUMERIC' || form.targets[0].targetType === 'PERCENTAGE' ? (
+                    <input
+                      type="number"
+                      value={form.targets[0].currentValue}
+                      onChange={(e) => updateTarget({ currentValue: Number(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter current value..."
+                    />
+                  ) : (
+                    <select
+                      value={form.targets[0].currentValue}
+                      onChange={(e) => updateTarget({ currentValue: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select status...</option>
+                      <option value="Not Started">Not Started</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                      <option value="On Hold">On Hold</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  )}
+                </div>
+
+                {/* Target Value */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Target Value
+                  </label>
+                  {form.targets[0].targetType === 'NUMERIC' || form.targets[0].targetType === 'PERCENTAGE' ? (
+                    <input
+                      type="number"
+                      value={form.targets[0].targetValue}
+                      onChange={(e) => updateTarget({ targetValue: Number(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter target value..."
+                    />
+                  ) : (
+                    <select
+                      value={form.targets[0].targetValue}
+                      onChange={(e) => updateTarget({ targetValue: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select target status...</option>
+                      <option value="Not Started">Not Started</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                      <option value="On Hold">On Hold</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  )}
+                </div>
+
+                {/* Target Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Target Type
+                  </label>
+                  <select
+                    value={form.targets[0].targetType}
+                    onChange={(e) => updateTarget({ 
+                      targetType: e.target.value as any,
+                      // Reset values when type changes
+                      currentValue: e.target.value === 'NUMERIC' ? 0 : e.target.value === 'STATUS' ? 'Not Started' : 0,
+                      targetValue: e.target.value === 'NUMERIC' ? 0 : e.target.value === 'STATUS' ? 'Completed' : 100,
+                      targetLabel: e.target.value === 'STATUS' ? 'N/A' : '',
+                      targetDirection: e.target.value === 'STATUS' ? 'N/A' : 'INCREASING'
+                    })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="NUMERIC">Numeric</option>
+                    <option value="PERCENTAGE">Percentage</option>
+                    <option value="STATUS">Status</option>
+                  </select>
+                </div>
+
+                {/* Target Label (Unit) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Target Label (Unit)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.targets[0].targetLabel}
+                    onChange={(e) => updateTarget({ targetLabel: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder={form.targets[0].targetType === 'STATUS' ? 'N/A' : 'e.g., Naira, Persons, Dollars, Percent'}
+                    disabled={form.targets[0].targetType === 'STATUS'}
+                  />
+                  {form.targets[0].targetType !== 'STATUS' && (
+                    <p className="text-xs text-gray-500 mt-1">Unit of measurement (e.g., Naira, Persons, Dollars, Percent)</p>
+                  )}
+                </div>
+
+                {/* Target Direction */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Target Direction
+                  </label>
+                  <select
+                    value={form.targets[0].targetDirection}
+                    onChange={(e) => updateTarget({ targetDirection: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    disabled={form.targets[0].targetType === 'STATUS'}
+                  >
+                    <option value="INCREASING">Increasing (Higher is better)</option>
+                    <option value="DECREASING">Decreasing (Lower is better)</option>
+                    <option value="N/A">N/A (Direction doesn't apply)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {form.targets[0].targetDirection === 'INCREASING' && 'Higher actual values are better'}
+                    {form.targets[0].targetDirection === 'DECREASING' && 'Lower actual values are better'}
+                    {form.targets[0].targetDirection === 'N/A' && 'Direction does not apply to this target'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Example Help Text */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <h4 className="text-sm font-medium text-blue-900 mb-2">Examples:</h4>
+                <div className="text-xs text-blue-800 space-y-1">
+                  <div><strong>Numeric:</strong> Current: 1000, Target: 5000, Label: "Naira", Direction: Increasing</div>
+                  <div><strong>Status:</strong> Current: "Not Started", Target: "Completed", Label: "N/A", Direction: N/A</div>
+                  <div><strong>Percentage:</strong> Current: 75, Target: 90, Label: "Percent", Direction: Increasing</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Recurring Options */}
           <div className="mb-8">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Frequency Settings</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Additional Information</h3>
             <div className="space-y-4">
+              {/* Recurring Checkbox */}
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -819,16 +1103,18 @@ export default function KPICreateModal({
                   onChange={(e) => setForm({ 
                     ...form, 
                     isRecurring: e.target.checked,
-                    frequency: e.target.checked ? 'MONTHLY' : undefined
+                    frequency: e.target.checked ? 'MONTHLY' : undefined,
+                    dueDate: e.target.checked ? '' : form.dueDate // Clear due date if recurring
                   })}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   disabled={!currentFiscalYear}
                 />
                 <label htmlFor="isRecurring" className="ml-2 block text-sm text-gray-900">
-                  This is a recurring KPI
+                  Recurring
                 </label>
               </div>
 
+              {/* Frequency Dropdown - Only show if recurring */}
               {form.isRecurring && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -840,138 +1126,31 @@ export default function KPICreateModal({
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     disabled={!currentFiscalYear}
                   >
+                    <option value="DAILY">Daily</option>
                     <option value="WEEKLY">Weekly</option>
                     <option value="MONTHLY">Monthly</option>
                     <option value="QUARTERLY">Quarterly</option>
-                    <option value="ANNUALLY">Annually</option>
+                    <option value="BIANNUAL">Biannual</option>
+                    <option value="ANNUALLY">Annual</option>
                   </select>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Targets */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Targets *</h3>
-              <button
-                type="button"
-                onClick={addTarget}
-                className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!currentFiscalYear}
-              >
-                Add Target
-              </button>
-            </div>
-
-            {form.targets.length === 0 && (
-              <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No targets defined</h3>
-                <p className="mt-1 text-sm text-gray-500">Get started by adding your first target.</p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {form.targets.map((target, index) => (
-                <div key={index} className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="flex justify-between items-start mb-4">
-                    <h4 className="text-md font-medium text-gray-900">Target {index + 1}</h4>
-                    <button
-                      type="button"
-                      onClick={() => removeTarget(index)}
-                      className="text-red-600 hover:text-red-800 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                      <select
-                        value={target.type}
-                        onChange={(e) => updateTarget(index, { type: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="NUMERIC">Numeric</option>
-                        <option value="PERCENTAGE">Percentage</option>
-                        <option value="STATUS">Status</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
-                      <select
-                        value={target.direction}
-                        onChange={(e) => updateTarget(index, { direction: e.target.value as any })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="INCREASE">Increase</option>
-                        <option value="DECREASE">Decrease</option>
-                        <option value="MAINTAIN">Maintain</option>
-                      </select>
-                    </div>
-
-                    {target.type === 'NUMERIC' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                          <input
-                            type="number"
-                            value={target.numericValue || ''}
-                            onChange={(e) => updateTarget(index, { numericValue: Number(e.target.value) })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                            step="0.01"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                          <input
-                            type="text"
-                            value={target.unit || ''}
-                            onChange={(e) => updateTarget(index, { unit: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="e.g., units, hours, $"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {target.type === 'PERCENTAGE' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Percentage</label>
-                        <input
-                          type="number"
-                          value={target.percentageValue || ''}
-                          onChange={(e) => updateTarget(index, { percentageValue: Number(e.target.value) })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                        />
-                      </div>
-                    )}
-
-                    {target.type === 'STATUS' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status Value</label>
-                        <input
-                          type="text"
-                          value={target.statusValue || ''}
-                          onChange={(e) => updateTarget(index, { statusValue: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="e.g., Completed, Active"
-                        />
-                      </div>
-                    )}
-                  </div>
+              {/* Due Date - Only show if NOT recurring */}
+              {!form.isRecurring && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!currentFiscalYear}
+                  />
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -1052,7 +1231,7 @@ export default function KPICreateModal({
             </button>
             <button
               type="submit"
-              disabled={loading || form.targets.length === 0 || !currentFiscalYear || !form.perspective || (shouldShowExitComponentAutoComplete() && !form.exitComponentId) || !selectedObjective || !form.name.trim() || !form.description?.trim() || !form.code?.trim()}
+              disabled={loading || !form.targets[0]?.targetValue || !currentFiscalYear || !form.perspective || (shouldShowExitComponentAutoComplete() && !form.exitComponentId) || !selectedObjective || !form.name.trim() || !form.description?.trim() || !form.code?.trim()}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : `Create ${terminology.kpis}`}
