@@ -13,11 +13,6 @@ interface KPITarget {
   targetDirection: 'INCREASING' | 'DECREASING' | 'N/A';
 }
 
-interface KPIObjective {
-  title: string;
-  description: string;
-}
-
 interface CreateKPIRequest {
   name: string;
   description?: string;
@@ -30,7 +25,6 @@ interface CreateKPIRequest {
   frequency?: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'BIANNUAL' | 'ANNUALLY';
   dueDate?: string;
   targets: KPITarget[];
-  objectives: KPIObjective[];
 }
 
 interface ExitComponent {
@@ -91,6 +85,14 @@ export default function KPICreateModal({
   const [objectiveSearchTerm, setObjectiveSearchTerm] = useState('');
   const [showObjectiveDropdown, setShowObjectiveDropdown] = useState(false);
   const [selectedObjective, setSelectedObjective] = useState('');
+  
+  // Inline objective creation states
+  const [showCreateObjectiveForm, setShowCreateObjectiveForm] = useState(false);
+  const [creatingObjective, setCreatingObjective] = useState(false);
+  const [newObjectiveForm, setNewObjectiveForm] = useState({
+    title: '',
+    description: ''
+  });
 
   // Evaluator auto-complete states
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
@@ -116,8 +118,7 @@ export default function KPICreateModal({
       currentValue: '',
       targetValue: '',
       targetLabel: ''
-    }],
-    objectives: []
+    }]
   });
 
   const fetchUsers = async () => {
@@ -227,14 +228,15 @@ export default function KPICreateModal({
       const target = event.target as HTMLElement;
       if (!target.closest('.objective-autocomplete')) {
         setShowObjectiveDropdown(false);
+        setShowCreateObjectiveForm(false);
       }
     };
 
-    if (showObjectiveDropdown) {
+    if (showObjectiveDropdown || showCreateObjectiveForm) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showObjectiveDropdown]);
+  }, [showObjectiveDropdown, showCreateObjectiveForm]);
 
   // Close evaluator dropdown when clicking outside
   useEffect(() => {
@@ -265,7 +267,7 @@ export default function KPICreateModal({
   // Progressive field visibility helpers
   const shouldShowKPIName = () => {
     // Show KPI name after objective is selected
-    return selectedObjective && form.objectives.length > 0;
+    return selectedObjective && selectedObjective.trim().length > 0;
   };
 
   const shouldShowKPIDescription = () => {
@@ -328,7 +330,6 @@ export default function KPICreateModal({
       const newCode = generateKPICode(prevForm.name, objective);
       return {
         ...prevForm,
-        objectives: [{ title: objective, description: '' }],
         code: newCode
       };
     });
@@ -345,7 +346,6 @@ export default function KPICreateModal({
         const newCode = generateKPICode(prevForm.name, value.trim());
         return {
           ...prevForm,
-          objectives: [{ title: value.trim(), description: '' }],
           code: newCode
         };
       });
@@ -353,7 +353,6 @@ export default function KPICreateModal({
       setSelectedObjective('');
       setForm(prevForm => ({
         ...prevForm,
-        objectives: [],
         code: ''
       }));
     }
@@ -482,6 +481,68 @@ export default function KPICreateModal({
     }
   };
 
+  // Inline objective creation functions
+  const handleCreateNewObjective = () => {
+    setNewObjectiveForm({
+      title: objectiveSearchTerm.trim(),
+      description: ''
+    });
+    setShowCreateObjectiveForm(true);
+    setShowObjectiveDropdown(false);
+  };
+
+  const handleSaveNewObjective = async () => {
+    if (!newObjectiveForm.title.trim()) return;
+    
+    setCreatingObjective(true);
+    
+    try {
+      // Create the objective in the organization
+      const response = await apiClient.post(`/tenants/${user?.tenantId}/objectives`, {
+        title: newObjectiveForm.title.trim(),
+        description: newObjectiveForm.description.trim()
+      });
+
+      // Handle the API response - check for objective data in the expected structure
+      let newObjectiveData = null;
+      
+      // Check if response.data has success and data properties (expected structure)
+      if ((response.data as any).success && (response.data as any).data?.objective) {
+        newObjectiveData = (response.data as any).data.objective;
+      }
+      // Check if response.data has objective directly (actual structure from apiClient)
+      else if ((response.data as any).objective) {
+        newObjectiveData = (response.data as any).objective;
+      }
+      
+      if (newObjectiveData && newObjectiveData.title) {
+        // Add the new objective to available objectives
+        setAvailableObjectives(prev => [...prev, newObjectiveData.title]);
+        setFilteredObjectives(prev => [...prev, newObjectiveData.title]);
+        
+        // Select the new objective
+        handleObjectiveSelect(newObjectiveData.title);
+        
+        // Reset create form
+        setShowCreateObjectiveForm(false);
+        setNewObjectiveForm({ title: '', description: '' });
+      } else {
+        console.error('Failed to extract objective data from response:', response.data);
+      }
+    } catch (error) {
+      console.error('🔍 [DEBUG] Error creating objective:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setCreatingObjective(false);
+    }
+  };
+
+  const handleCancelCreateObjective = () => {
+    setShowCreateObjectiveForm(false);
+    setNewObjectiveForm({ title: '', description: '' });
+    setShowObjectiveDropdown(true);
+  };
+
   const resetForm = () => {
     setForm({
       name: '',
@@ -500,8 +561,7 @@ export default function KPICreateModal({
         currentValue: '',
         targetValue: '',
         targetLabel: ''
-      }],
-      objectives: []
+      }]
     });
     
     // Reset objective-related states
@@ -509,6 +569,11 @@ export default function KPICreateModal({
     setObjectiveSearchTerm('');
     setShowObjectiveDropdown(false);
     setFilteredObjectives(availableObjectives);
+    
+    // Reset inline objective creation states
+    setShowCreateObjectiveForm(false);
+    setNewObjectiveForm({ title: '', description: '' });
+    setCreatingObjective(false);
     
     // Reset evaluator-related states
     setSelectedEvaluator(null);
@@ -563,7 +628,7 @@ export default function KPICreateModal({
     }
 
     // Validate objective - always required
-    if (!selectedObjective || !form.objectives.length) {
+    if (!selectedObjective || !selectedObjective.trim()) {
       setError(`${terminology.objective || 'Objective'} is required`);
       return;
     }
@@ -624,29 +689,6 @@ export default function KPICreateModal({
   const updateTarget = (updates: Partial<KPITarget>) => {
     const updatedTarget = { ...form.targets[0], ...updates };
     setForm({ ...form, targets: [updatedTarget] });
-  };
-
-  const addObjective = () => {
-    setForm({
-      ...form,
-      objectives: [
-        ...form.objectives,
-        { title: '', description: '' }
-      ]
-    });
-  };
-
-  const updateObjective = (index: number, updates: Partial<KPIObjective>) => {
-    const newObjectives = [...form.objectives];
-    newObjectives[index] = { ...newObjectives[index], ...updates };
-    setForm({ ...form, objectives: newObjectives });
-  };
-
-  const removeObjective = (index: number) => {
-    setForm({
-      ...form,
-      objectives: form.objectives.filter((_, i) => i !== index)
-    });
   };
 
   if (!isOpen) return null;
@@ -814,18 +856,102 @@ export default function KPICreateModal({
                     disabled={!currentFiscalYear}
                   />
                   
-                  {/* Dropdown */}
-                  {showObjectiveDropdown && filteredObjectives.length > 0 && (
+                  {/* Enhanced Dropdown with Create New Option */}
+                  {showObjectiveDropdown && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {/* Existing objectives */}
                       {filteredObjectives.map((objective, index) => (
                         <div
                           key={index}
                           onClick={() => handleObjectiveSelect(objective)}
-                          className="px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                          className="px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100"
                         >
                           <div className="font-medium text-gray-900">{objective}</div>
                         </div>
                       ))}
+                      
+                      {/* Create New Option */}
+                      {objectiveSearchTerm.trim() && 
+                       !filteredObjectives.some(obj => obj.toLowerCase() === objectiveSearchTerm.toLowerCase()) && (
+                        <div
+                          onClick={handleCreateNewObjective}
+                          className="px-3 py-2 cursor-pointer hover:bg-green-50 border-b border-gray-100 bg-green-25"
+                        >
+                          <div className="font-medium text-green-700 flex items-center">
+                            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                            </svg>
+                            Create new: "{objectiveSearchTerm.trim()}"
+                          </div>
+                          <div className="text-sm text-green-600">
+                            Add this {terminology.objective?.toLowerCase() || 'objective'} to your organization
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* No results message */}
+                      {filteredObjectives.length === 0 && !objectiveSearchTerm.trim() && (
+                        <div className="px-3 py-2 text-gray-500 text-sm">
+                          No {terminology.objective?.toLowerCase() || 'objectives'} available
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Inline Create Objective Form */}
+                  {showCreateObjectiveForm && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4">
+                      <h4 className="font-medium text-gray-900 mb-3">
+                        Create New {terminology.objective || 'Objective'}
+                      </h4>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Title *
+                          </label>
+                          <input
+                            type="text"
+                            value={newObjectiveForm.title}
+                            onChange={(e) => setNewObjectiveForm(prev => ({ ...prev, title: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            placeholder={`Enter ${terminology.objective?.toLowerCase() || 'objective'} title...`}
+                            autoFocus
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Description
+                          </label>
+                          <textarea
+                            value={newObjectiveForm.description}
+                            onChange={(e) => setNewObjectiveForm(prev => ({ ...prev, description: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            rows={2}
+                            placeholder={`Enter ${terminology.objective?.toLowerCase() || 'objective'} description...`}
+                          />
+                        </div>
+                        
+                        <div className="flex justify-end space-x-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={handleCancelCreateObjective}
+                            className="px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                            disabled={creatingObjective}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveNewObjective}
+                            className="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                            disabled={!newObjectiveForm.title.trim() || creatingObjective}
+                          >
+                            {creatingObjective ? 'Creating...' : 'Create & Use'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1151,70 +1277,6 @@ export default function KPICreateModal({
                   />
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Objectives */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Objectives</h3>
-              <button
-                type="button"
-                onClick={addObjective}
-                className="bg-green-600 text-white px-3 py-2 rounded-md hover:bg-green-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!currentFiscalYear}
-              >
-                Add Objective
-              </button>
-            </div>
-
-            {form.objectives.length === 0 && (
-              <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                <p className="text-sm text-gray-500">No objectives defined. Objectives help break down your KPI into actionable steps.</p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {form.objectives.map((objective, index) => (
-                <div key={index} className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="flex justify-between items-start mb-4">
-                    <h4 className="text-md font-medium text-gray-900">Objective {index + 1}</h4>
-                    <button
-                      type="button"
-                      onClick={() => removeObjective(index)}
-                      className="text-red-600 hover:text-red-800 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                      <input
-                        type="text"
-                        value={objective.title}
-                        onChange={(e) => updateObjective(index, { title: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter objective title..."
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <textarea
-                        value={objective.description}
-                        onChange={(e) => updateObjective(index, { description: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        rows={2}
-                        placeholder="Describe what needs to be accomplished..."
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
           </>
