@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
@@ -16,7 +16,7 @@ interface KPI {
   name: string;
   description?: string;
   perspective: string;
-  status: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  isActive: boolean; // Changed from status enum to isActive boolean
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
@@ -178,27 +178,14 @@ interface CreateKPIRequest {
 }
 
 const statusColors = {
-  DRAFT: 'bg-gray-100 text-gray-800',
   ACTIVE: 'bg-blue-100 text-blue-800',
-  COMPLETED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-red-100 text-red-800',
+  INACTIVE: 'bg-gray-100 text-gray-800',
 };
 
 const statusLabels = {
-  DRAFT: 'Draft',
   ACTIVE: 'Active',
-  COMPLETED: 'Completed',
-  CANCELLED: 'Cancelled',
+  INACTIVE: 'Inactive',
 };
-
-const perspectiveOptions = [
-  'Financial',
-  'Customer',
-  'Internal Process',
-  'Learning & Growth',
-  'Stakeholder',
-  'Social & Environmental'
-];
 
 export default function AssignedKPIsPage() {
   const { user } = useAuth();
@@ -221,6 +208,10 @@ export default function AssignedKPIsPage() {
   const [selectedFiscalYear, setSelectedFiscalYear] = useState('');
   const [selectedOrgUnit, setSelectedOrgUnit] = useState('');
   
+  // View states
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards'); // New state for view mode
+  const [selectedOrgUnitForView, setSelectedOrgUnitForView] = useState<OrgUnit | null>(null); // Store the org unit being viewed
+  
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -242,6 +233,22 @@ export default function AssignedKPIsPage() {
     objectives: []
   });
 
+  // Generate dynamic perspective options from actual KPI data
+  const perspectiveOptions = useMemo(() => {
+    const perspectives = new Set<string>();
+    kpis.forEach(kpi => {
+      if (kpi.perspective) {
+        if (typeof kpi.perspective === 'object' && kpi.perspective !== null) {
+          const perspectiveName = (kpi.perspective as any).name || (kpi.perspective as any).description;
+          if (perspectiveName) perspectives.add(perspectiveName);
+        } else {
+          perspectives.add(kpi.perspective);
+        }
+      }
+    });
+    return Array.from(perspectives).sort();
+  }, [kpis]);
+
   useEffect(() => {
     fetchAssignedOrgUnits();
     fetchFiscalYears();
@@ -259,7 +266,11 @@ export default function AssignedKPIsPage() {
     
     try {
       setLoading(true);
+      console.log('DEBUG: Fetching org units for user:', user.id, 'tenant:', user.tenantId);
+      
       const response = await apiClient.get(`/tenants/${user.tenantId}/org-units`);
+      console.log('DEBUG: Org units API response:', response);
+      
       if (response.success && response.data) {
         const data = response.data as any;
         if (data.orgUnits) {
@@ -267,6 +278,7 @@ export default function AssignedKPIsPage() {
           const championsOrgUnits = data.orgUnits.filter((orgUnit: any) => 
             orgUnit.kpiChampions?.some((champion: any) => champion.user?.id === user.id)
           );
+          console.log('DEBUG: Filtered org units where user is champion:', championsOrgUnits);
           setOrgUnits(championsOrgUnits);
           setIsKpiChampion(championsOrgUnits.length > 0);
         }
@@ -290,9 +302,18 @@ export default function AssignedKPIsPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (selectedOrgUnit) params.append('orgUnitId', selectedOrgUnit);
       
-      const response = await apiClient.get(`/kpis/assigned-kpis?${params.toString()}`);
+      console.log('DEBUG: Fetching KPIs with params:', params.toString());
+      const response = await apiClient.get(`/kpis?${params.toString()}`);
+      console.log('DEBUG: KPI API response:', response);
+      console.log('DEBUG: KPI API response.data:', response.data);
+      console.log('DEBUG: KPI API response.data type:', typeof response.data);
+      console.log('DEBUG: KPI API response.data keys:', Object.keys(response.data || {}));
+      
       if (response.success && response.data) {
-        setKpis(Array.isArray(response.data) ? response.data : []);
+        const kpiData = Array.isArray(response.data) ? response.data : [];
+        console.log('DEBUG: KPI data received:', kpiData);
+        console.log('DEBUG: Number of KPIs received:', kpiData.length);
+        setKpis(kpiData);
       }
     } catch (error) {
       console.error('Error fetching KPIs:', error);
@@ -395,6 +416,18 @@ export default function AssignedKPIsPage() {
     setIsShareModalOpen(true);
   };
 
+  const viewOrgUnitKPIs = (orgUnit: OrgUnit) => {
+    setSelectedOrgUnitForView(orgUnit);
+    setSelectedOrgUnit(orgUnit.id);
+    setViewMode('list');
+  };
+
+  const backToCardsView = () => {
+    setViewMode('cards');
+    setSelectedOrgUnitForView(null);
+    setSelectedOrgUnit('');
+  };
+
   const closeModals = () => {
     setIsCreateModalOpen(false);
     setIsViewModalOpen(false);
@@ -450,8 +483,14 @@ export default function AssignedKPIsPage() {
       kpi.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       kpi.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesPerspective = !selectedPerspective || kpi.perspective === selectedPerspective;
-    const matchesStatus = !selectedStatus || kpi.status === selectedStatus;
+    const matchesPerspective = !selectedPerspective || 
+      (typeof kpi.perspective === 'object' && kpi.perspective !== null
+        ? (kpi.perspective as any).name === selectedPerspective || (kpi.perspective as any).description === selectedPerspective
+        : kpi.perspective === selectedPerspective);
+    // Update status filtering to use isActive
+    const matchesStatus = !selectedStatus || 
+      (selectedStatus === 'ACTIVE' && kpi.isActive) || 
+      (selectedStatus === 'INACTIVE' && !kpi.isActive);
     
     return matchesSearch && matchesPerspective && matchesStatus;
   });
@@ -566,7 +605,7 @@ export default function AssignedKPIsPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">All Perspectives</option>
-                {perspectiveOptions.map((perspective) => (
+                {perspectiveOptions.map((perspective: string) => (
                   <option key={perspective} value={perspective}>
                     {perspective}
                   </option>
@@ -595,8 +634,173 @@ export default function AssignedKPIsPage() {
           </div>
         </div>
 
+        {/* KPI List View */}
+        {viewMode === 'list' && selectedOrgUnitForView && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            {/* List Header */}
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={backToCardsView}
+                    className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Overview
+                  </button>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {selectedOrgUnitForView.name} - {terminology?.kpisPlural || 'KPIs'}
+                  </div>
+                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {filteredKpis.length} {filteredKpis.length === 1 ? (terminology?.kpis || 'KPI') : (terminology?.kpisPlural || 'KPIs')}
+                  </span>
+                </div>
+                <button
+                  onClick={() => openCreateModal(selectedOrgUnitForView)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Create {terminology?.kpis || 'KPI'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* KPI Table */}
+            {filteredKpis.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <svg
+                  className="mx-auto h-12 w-12 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No {terminology?.kpisPlural || 'KPIs'}</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Get started by creating a new {terminology?.kpis || 'KPI'} for {selectedOrgUnitForView.name}.
+                </p>
+                <div className="mt-6">
+                  <button
+                    onClick={() => openCreateModal(selectedOrgUnitForView)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    New {terminology?.kpis || 'KPI'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        {terminology?.kpis || 'KPI'} Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Description
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Perspective
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Frequency
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Due Date
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredKpis.map((kpi) => (
+                      <tr key={kpi.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{kpi.name}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 max-w-xs truncate">
+                            {kpi.description || 'No description'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {typeof kpi.perspective === 'object' && kpi.perspective !== null 
+                              ? (kpi.perspective as any).name || (kpi.perspective as any).description || 'N/A'
+                              : kpi.perspective || 'N/A'
+                            }
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            kpi.isActive ? statusColors.ACTIVE : statusColors.INACTIVE
+                          }`}>
+                            {kpi.isActive ? statusLabels.ACTIVE : statusLabels.INACTIVE}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {kpi.isRecurring ? (kpi.frequency || 'Recurring') : 'One-time'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {kpi.dueDate ? new Date(kpi.dueDate).toLocaleDateString() : 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={() => openViewModal(kpi)}
+                              className="text-blue-600 hover:text-blue-900 text-sm"
+                              title="View Details"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => openShareModal(kpi)}
+                              className="text-green-600 hover:text-green-900 text-sm"
+                              title="Share"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Organizational Units Grid */}
-        {orgUnits.length === 0 ? (
+        {viewMode === 'cards' && (
+          <>
+            {orgUnits.length === 0 ? (
           <div className="text-center py-12">
             <svg
               className="mx-auto h-12 w-12 text-gray-400"
@@ -619,10 +823,16 @@ export default function AssignedKPIsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {orgUnits.map((orgUnit) => {
-              // Count KPIs for this org unit
-              const orgUnitKPIs = kpis.filter(kpi => kpi.orgUnitId === orgUnit.id || !selectedOrgUnit);
-              const activeKPIs = orgUnitKPIs.filter(kpi => kpi.status === 'ACTIVE').length;
-              const completedKPIs = orgUnitKPIs.filter(kpi => kpi.status === 'COMPLETED').length;
+              // Count KPIs for this org unit - only show KPIs that actually belong to this org unit
+              const orgUnitKPIs = kpis.filter(kpi => kpi.orgUnitId === orgUnit.id);
+              const activeKPIs = orgUnitKPIs.filter(kpi => kpi.isActive).length;
+              const inactiveKPIs = orgUnitKPIs.filter(kpi => !kpi.isActive).length;
+
+              console.log('DEBUG: Org unit:', orgUnit.name, orgUnit.id);
+              console.log('DEBUG: All KPIs:', kpis.length);
+              console.log('DEBUG: KPIs for this org unit:', orgUnitKPIs.length);
+              console.log('DEBUG: Active KPIs:', activeKPIs);
+              console.log('DEBUG: KPIs data for this org unit:', orgUnitKPIs.map(k => ({ id: k.id, name: k.name, orgUnitId: k.orgUnitId, isActive: k.isActive })));
 
               return (
                 <div
@@ -661,9 +871,9 @@ export default function AssignedKPIsPage() {
                       <div className="text-2xl font-bold text-blue-600">{activeKPIs}</div>
                       <div className="text-xs text-blue-700">Active {terminology?.kpisPlural || 'KPIs'}</div>
                     </div>
-                    <div className="text-center p-3 bg-green-50 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">{completedKPIs}</div>
-                      <div className="text-xs text-green-700">Completed</div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold text-gray-600">{inactiveKPIs}</div>
+                      <div className="text-xs text-gray-700">Inactive</div>
                     </div>
                   </div>
 
@@ -692,7 +902,7 @@ export default function AssignedKPIsPage() {
                     </button>
                     
                     <button
-                      onClick={() => setSelectedOrgUnit(orgUnit.id)}
+                      onClick={() => viewOrgUnitKPIs(orgUnit)}
                       className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                     >
                       View {terminology?.kpisPlural || 'KPIs'} ({orgUnitKPIs.length})
@@ -702,6 +912,9 @@ export default function AssignedKPIsPage() {
               );
             })}
           </div>
+            )
+          }
+          </>
         )}
 
         {/* Modals */}
@@ -709,7 +922,8 @@ export default function AssignedKPIsPage() {
           isOpen={isCreateModalOpen}
           onClose={closeModals}
           onSuccess={(newKpi) => {
-            setKpis([newKpi, ...kpis]);
+            // Refetch KPIs to ensure proper filtering is applied
+            fetchKPIsForOrgUnits();
             closeModals();
           }}
           fiscalYears={fiscalYears}
@@ -720,7 +934,7 @@ export default function AssignedKPIsPage() {
         <KPIViewModal
           isOpen={isViewModalOpen}
           onClose={closeModals}
-          kpi={selectedKpi}
+          kpi={selectedKpi as any}
           onUpdate={(updatedKpi) => {
             setKpis(kpis.map(k => k.id === updatedKpi.id ? updatedKpi as any : k));
           }}

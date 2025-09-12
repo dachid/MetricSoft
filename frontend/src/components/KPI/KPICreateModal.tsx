@@ -673,7 +673,30 @@ export default function KPICreateModal({
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.post('/kpis', form);
+      // Prepare the KPI data for the backend API
+      const kpiData = {
+        fiscalYearId: form.fiscalYearId,
+        // If exit component is selected, use it. Otherwise, use current org unit (for organization-level KPIs)
+        orgUnitId: form.exitComponentId || currentOrgUnit?.id || '', 
+        perspectiveId: form.perspective,
+        parentObjectiveId: null, // Will be created by backend
+        objectiveTitle: selectedObjective, // Send the objective title to be created
+        name: form.name,
+        description: form.description,
+        code: form.code,
+        evaluatorId: form.evaluatorId,
+        isRecurring: form.isRecurring,
+        frequency: form.isRecurring ? form.frequency : null,
+        dueDate: !form.isRecurring ? form.dueDate : null,
+        target: {
+          ...form.targets[0],
+          // Ensure values are strings as expected by the backend
+          currentValue: String(form.targets[0].currentValue),
+          targetValue: String(form.targets[0].targetValue)
+        }
+      };
+
+      const response = await apiClient.post('/kpis', kpiData);
       if (response.success && response.data) {
         onSuccess(response.data);
         onClose();

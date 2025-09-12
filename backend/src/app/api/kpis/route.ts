@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authMiddleware } from '@/lib/middleware/auth';
 import { createApiRoute, AuthenticationError, AuthorizationError, ValidationError, DatabaseError, NotFoundError } from '@/lib/middleware';
@@ -7,8 +7,13 @@ export const dynamic = 'force-dynamic';
 
 // GET /api/kpis - Get KPIs for current user's org unit
 export const GET = createApiRoute(async (request: NextRequest) => {
+  console.log('🔍 [KPI API] GET /api/kpis called');
+  
   const authResult = await authMiddleware(request);
+  console.log('🔍 [KPI API] Auth result:', { success: authResult.success, userId: authResult.user?.id, tenantId: authResult.user?.tenantId });
+  
   if (!authResult.success) {
+    console.log('❌ [KPI API] Authentication failed:', authResult.error);
     throw new AuthenticationError(authResult.error || 'Authentication required');
   }
 
@@ -16,8 +21,11 @@ export const GET = createApiRoute(async (request: NextRequest) => {
   const orgUnitId = searchParams.get('orgUnitId');
   const fiscalYearId = searchParams.get('fiscalYearId');
   const includeShared = searchParams.get('includeShared') === 'true';
+  
+  console.log('🔍 [KPI API] Search params:', { orgUnitId, fiscalYearId, includeShared });
 
   if (!authResult.user?.tenantId) {
+    console.log('❌ [KPI API] User has no tenant');
     throw new AuthorizationError('User must belong to a tenant');
   }
 
@@ -35,6 +43,8 @@ export const GET = createApiRoute(async (request: NextRequest) => {
     if (fiscalYearId) {
       baseWhere.fiscalYearId = fiscalYearId;
     }
+    
+    console.log('🔍 [KPI API] Base where clause:', baseWhere);
 
     // Get KPIs created by or assigned to the user
     const kpis = await (prisma as any).kPI.findMany({
@@ -86,14 +96,17 @@ export const GET = createApiRoute(async (request: NextRequest) => {
         createdAt: 'desc'
       }
     });
+    
+    console.log('🔍 [KPI API] Query completed. Found KPIs:', kpis.length);
+    console.log('🔍 [KPI API] KPI names:', kpis.map((kpi: any) => kpi.name));
 
-    return NextResponse.json({
+    return {
       success: true,
       data: kpis
-    });
+    };
 
   } catch (error) {
-    console.error('Get KPIs error:', error);
+    console.error('❌ [KPI API] Error fetching KPIs:', error);
     throw new DatabaseError('Failed to fetch KPIs');
   }
 });
@@ -116,6 +129,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       orgUnitId,
       perspectiveId,
       parentObjectiveId,
+      objectiveTitle,
       name,
       description,
       code,
@@ -215,6 +229,23 @@ export const POST = createApiRoute(async (request: NextRequest) => {
 
     // Create KPI with target in a transaction
     const result = await prisma.$transaction(async (tx: any) => {
+      let actualParentObjectiveId = parentObjectiveId;
+
+      // Create objective if objectiveTitle is provided
+      if (objectiveTitle && objectiveTitle.trim()) {
+        const objective = await tx.kPIObjective.create({
+          data: {
+            tenantId: authResult.user!.tenantId,
+            fiscalYearId,
+            orgUnitId,
+            name: objectiveTitle.trim(),
+            description: '', // Default empty description
+            createdById: authResult.user!.id
+          }
+        });
+        actualParentObjectiveId = objective.id;
+      }
+
       // Create the KPI
       const kpi = await tx.kPI.create({
         data: {
@@ -222,7 +253,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
           fiscalYearId,
           orgUnitId,
           perspectiveId,
-          parentObjectiveId,
+          parentObjectiveId: actualParentObjectiveId,
           name,
           description,
           code,
@@ -297,10 +328,10 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       }
     });
 
-    return NextResponse.json({
+    return {
       success: true,
       data: createdKpi
-    }, { status: 201 });
+    };
 
   } catch (error) {
     console.error('Create KPI error:', error);
