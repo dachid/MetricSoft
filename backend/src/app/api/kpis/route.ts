@@ -80,6 +80,14 @@ export const GET = createApiRoute(async (request: NextRequest) => {
             levelDefinition: true
           }
         },
+        performanceComponent: {
+          select: {
+            id: true,
+            name: true,
+            componentType: true,
+            organizationalLevel: true
+          }
+        },
         shares: {
           include: {
             sharedWithUser: {
@@ -131,6 +139,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       parentObjectiveId,
       objectiveTitle,
       objectiveDescription,
+      performanceComponentId,
       name,
       description,
       code,
@@ -255,6 +264,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
           orgUnitId,
           perspectiveId,
           parentObjectiveId: actualParentObjectiveId,
+          performanceComponentId,
           name,
           description,
           code,
@@ -268,6 +278,12 @@ export const POST = createApiRoute(async (request: NextRequest) => {
 
       // Create the target
       if (target) {
+        // Map frontend target direction values to database enum values
+        let targetDirection = target.targetDirection || 'INCREASING';
+        if (targetDirection === 'N/A') {
+          targetDirection = 'N_A';
+        }
+        
         await tx.kPITarget.create({
           data: {
             kpiId: kpi.id,
@@ -275,7 +291,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
             targetValue: target.targetValue,
             targetType: target.targetType || 'NUMERIC',
             targetLabel: target.targetLabel,
-            targetDirection: target.targetDirection || 'INCREASING'
+            targetDirection: targetDirection as any
           }
         });
       }

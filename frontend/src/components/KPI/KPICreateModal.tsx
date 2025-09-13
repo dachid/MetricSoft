@@ -256,14 +256,14 @@ export default function KPICreateModal({
     }
   }, [showEvaluatorDropdown]);
 
-  // Check if current org unit is not at Organization level
-  const shouldShowExitComponentAutoComplete = () => {
+  // Check if current org unit should show entry component field (for non-top levels)
+  const shouldShowEntryComponentAutoComplete = () => {
     if (!currentOrgUnit) return false;
     
     const levelName = currentOrgUnit.levelDefinition?.name;
     const parentId = currentOrgUnit.parentId;
     
-    // Show the field if it's not at the Organization level and has a parent
+    // Show entry component field for levels that have a parent (receive initiatives from above)
     return levelName !== 'Organization' && parentId !== null;
   };
 
@@ -422,24 +422,51 @@ export default function KPICreateModal({
   };
 
   const fetchPreviousLevelExitComponents = async () => {
+    console.log('🔍 [Initiative Modal] Starting fetchPreviousLevelExitComponents...');
+    console.log('🔍 [Initiative Modal] Current fiscal year:', currentFiscalYear?.id);
+    console.log('🔍 [Initiative Modal] User tenant:', user?.tenantId);
+    console.log('🔍 [Initiative Modal] Current org unit:', currentOrgUnit);
+    console.log('🔍 [Initiative Modal] Current org unit parent ID:', currentOrgUnit?.parentId);
+    
     try {
-      if (!currentFiscalYear?.id || !user?.tenantId || !currentOrgUnit?.level?.parentId) {
+      if (!currentFiscalYear?.id || !user?.tenantId || !currentOrgUnit?.parentId) {
+        console.log('🔍 [Initiative Modal] Missing required data, setting empty components');
         setPreviousLevelExitComponents([]);
         return;
       }
       
-      const url = `/tenants/${user.tenantId}/fiscal-years/${currentFiscalYear.id}/performance-components?levelId=${currentOrgUnit.level.parentId}&componentType=EXIT`;
+      // First, get the parent org unit to find its level ID
+      console.log('🔍 [Initiative Modal] Fetching parent org unit to get level ID...');
+      const parentOrgResponse = await apiClient.get(`/tenants/${user.tenantId}/org-units/${currentOrgUnit.parentId}`);
+      console.log('🔍 [Initiative Modal] Parent org unit response:', parentOrgResponse);
+      
+      const parentOrgData = parentOrgResponse.data as any;
+      if (!parentOrgData?.levelDefinitionId) {
+        console.log('🔍 [Initiative Modal] No parent level definition ID found');
+        setPreviousLevelExitComponents([]);
+        return;
+      }
+      
+      const parentLevelId = parentOrgData.levelDefinitionId;
+      console.log('🔍 [Initiative Modal] Parent level ID:', parentLevelId);
+      
+      const url = `/tenants/${user.tenantId}/fiscal-years/${currentFiscalYear.id}/performance-components?levelId=${parentLevelId}&componentType=EXIT`;
+      console.log('🔍 [Initiative Modal] Fetching from URL:', url);
+      
       const response = await apiClient.get(url);
+      console.log('🔍 [Initiative Modal] API Response:', response);
       
       if (response.data && Array.isArray(response.data)) {
+        console.log('🔍 [Initiative Modal] Found exit components:', response.data);
         setPreviousLevelExitComponents(response.data);
         setFilteredExitComponents(response.data);
       } else {
+        console.log('🔍 [Initiative Modal] No valid response data, setting empty');
         setPreviousLevelExitComponents([]);
         setFilteredExitComponents([]);
       }
     } catch (error) {
-      console.error('Error fetching previous level exit components:', error);
+      console.error('🔍 [Initiative Modal] Error fetching previous level exit components:', error);
       setPreviousLevelExitComponents([]);
       setFilteredExitComponents([]);
     }
@@ -641,9 +668,9 @@ export default function KPICreateModal({
       return;
     }
 
-    // Validate exit component if required
-    if (shouldShowExitComponentAutoComplete() && !form.exitComponentId) {
-      setError(`${terminology.exitComponent || 'Exit component'} is required`);
+    // Validate component selection based on organizational level
+    if (shouldShowEntryComponentAutoComplete() && !form.exitComponentId) {
+      setError(`${terminology.entryComponent || 'Entry component'} is required`);
       return;
     }
 
@@ -696,12 +723,13 @@ export default function KPICreateModal({
       // Prepare the KPI data for the backend API
       const kpiData = {
         fiscalYearId: form.fiscalYearId,
-        // If exit component is selected, use it. Otherwise, use current org unit (for organization-level KPIs)
-        orgUnitId: form.exitComponentId || currentOrgUnit?.id || '', 
+        // Always use the current org unit ID where the KPI is being created
+        orgUnitId: currentOrgUnit?.id || '', 
         perspectiveId: form.perspective,
         parentObjectiveId: null, // Will be created by backend
         objectiveTitle: selectedObjective, // Send the objective title to be created
         objectiveDescription: objectiveDescriptions[selectedObjective] || '', // Send the objective description if available
+        performanceComponentId: form.exitComponentId || null, // Link to performance component (initiative)
         name: form.name,
         description: form.description,
         code: form.code,
@@ -716,6 +744,10 @@ export default function KPICreateModal({
           targetValue: String(form.targets[0].targetValue)
         }
       };
+
+      console.log('🔍 [KPI Creation] Sending KPI data:', kpiData);
+      console.log('🔍 [KPI Creation] Current org unit:', currentOrgUnit);
+      console.log('🔍 [KPI Creation] Selected exit component ID:', form.exitComponentId);
 
       const response = await apiClient.post('/kpis', kpiData);
       if (response.success && response.data) {
@@ -833,11 +865,11 @@ export default function KPICreateModal({
                 )}
               </div>
 
-              {/* Exit Component Auto-complete - Third field (only for non-Organization levels) */}
-              {shouldShowExitComponentAutoComplete() && (
+              {/* Entry Component Auto-complete - For departments/units with parents (link to initiatives from parent level) */}
+              {shouldShowEntryComponentAutoComplete() && (
                 <div className="md:col-span-2 relative exit-component-autocomplete">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {terminology.exitComponent || 'Exit Component'} *
+                    {terminology.entryComponent || 'Entry Component'} *
                   </label>
                   <div className="relative">
                     <input
@@ -846,7 +878,7 @@ export default function KPICreateModal({
                       onChange={(e) => handleExitComponentInputChange(e.target.value)}
                       onFocus={() => setShowExitComponentDropdown(true)}
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder={`Search ${terminology.exitComponent?.toLowerCase() || 'exit component'}...`}
+                      placeholder={`Search ${terminology.entryComponent?.toLowerCase() || 'entry component'}...`}
                       required
                       disabled={!currentFiscalYear || previousLevelExitComponents.length === 0}
                     />
@@ -870,13 +902,13 @@ export default function KPICreateModal({
                   
                   {previousLevelExitComponents.length === 0 && currentFiscalYear && (
                     <p className="text-sm text-amber-600 mt-1">
-                      No {terminology.exitComponent?.toLowerCase() || 'exit components'} available from the previous level.
+                      No {terminology.entryComponent?.toLowerCase() || 'entry components'} available from the parent level.
                     </p>
                   )}
                   
                   {!currentFiscalYear && (
                     <p className="text-sm text-gray-500 mt-1">
-                      Set up a fiscal year first to view available {terminology.exitComponent?.toLowerCase() || 'exit components'}.
+                      Set up a fiscal year first to view available {terminology.entryComponent?.toLowerCase() || 'entry components'}.
                     </p>
                   )}
                 </div>
@@ -1337,7 +1369,7 @@ export default function KPICreateModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !form.targets[0]?.targetValue || !currentFiscalYear || !form.perspective || (shouldShowExitComponentAutoComplete() && !form.exitComponentId) || !selectedObjective || !form.name.trim() || !form.description?.trim() || !form.code?.trim()}
+              disabled={loading || !form.targets[0]?.targetValue || !currentFiscalYear || !form.perspective || (shouldShowEntryComponentAutoComplete() && !form.exitComponentId) || !selectedObjective || !form.name.trim() || !form.description?.trim() || !form.code?.trim()}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : `Create ${terminology.kpis}`}

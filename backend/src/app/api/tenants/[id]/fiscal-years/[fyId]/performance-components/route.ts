@@ -19,6 +19,9 @@ export async function GET(
     }
 
     const { id: tenantId, fyId: fiscalYearId } = params;
+    const { searchParams } = new URL(request.url);
+    const levelId = searchParams.get('levelId');
+    const componentType = searchParams.get('componentType');
 
     // Verify tenant access - Super Admins can access any tenant
     const isSuperAdmin = authResult.user.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
@@ -26,7 +29,41 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Get all performance components for this fiscal year
+    // If levelId and componentType are provided, return actual performance components (for KPI creation)
+    if (levelId && componentType) {
+      // First, get the org unit for this level to find the organizational level name
+      const orgLevel = await prisma.fiscalYearLevelDefinition.findUnique({
+        where: { id: levelId }
+      });
+      
+      if (!orgLevel) {
+        return NextResponse.json({ error: 'Organizational level not found' }, { status: 404 });
+      }
+
+      // Query the performance_components table for actual components
+      const components = await prisma.performanceComponent.findMany({
+        where: {
+          tenantId,
+          organizationalLevel: orgLevel.name, // Match by level name
+          componentType: componentType as 'ENTRY' | 'EXIT'
+        },
+        orderBy: [
+          { name: 'asc' }
+        ]
+      });
+
+      // Transform to match expected frontend format
+      const transformedComponents = components.map(comp => ({
+        id: comp.id,
+        componentName: comp.name,
+        componentType: comp.componentType,
+        organizationalLevel: comp.organizationalLevel
+      }));
+
+      return NextResponse.json(transformedComponents, { status: 200 });
+    }
+
+    // Default behavior: Get all performance component templates for this fiscal year
     const components = await prisma.performanceComponentTemplate.findMany({
       where: {
         fiscalYearId,

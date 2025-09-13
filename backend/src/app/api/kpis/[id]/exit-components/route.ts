@@ -110,7 +110,13 @@ export const POST = createApiRoute(async (req: NextRequest, { params }: { params
     // Get the KPI details
     const kpi = await prisma.kPI.findUnique({
       where: { id: kpiId },
-      include: { orgUnit: true }
+      include: { 
+        orgUnit: {
+          include: {
+            levelDefinition: true
+          }
+        }
+      }
     });
 
     if (!kpi) {
@@ -129,7 +135,7 @@ export const POST = createApiRoute(async (req: NextRequest, { params }: { params
         "componentType", "kpiId", "templateId", "createdById", 
         weight, "isActive", "createdAt", "updatedAt"
       ) VALUES (
-        gen_random_uuid()::text, ${kpi.tenantId}, ${name}, ${description}, ${kpi.orgUnit.name},
+        gen_random_uuid()::text, ${kpi.tenantId}, ${name}, ${description}, ${kpi.orgUnit.levelDefinition.name},
         'EXIT', ${kpiId}, ${parentExitComponentId}, ${authResult.user.id},
         1.0, true, NOW(), NOW()
       ) RETURNING *

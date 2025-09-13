@@ -30,7 +30,9 @@ const defaultTerminology: TerminologyConfig = {
   dashboard: 'Dashboard',
   reports: 'Reports',
   orgUnits: 'Organizational Units',
-  departments: 'Departments'
+  departments: 'Departments',
+  entryComponent: 'Initiative',
+  exitComponent: 'Initiative'
 };
 
 export function useTerminology(): UseTerminologyResult {
