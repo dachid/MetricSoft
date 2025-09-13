@@ -86,6 +86,9 @@ export default function KPICreateModal({
   const [showObjectiveDropdown, setShowObjectiveDropdown] = useState(false);
   const [selectedObjective, setSelectedObjective] = useState('');
   
+  // Track objective descriptions for inline-created objectives
+  const [objectiveDescriptions, setObjectiveDescriptions] = useState<Record<string, string>>({});
+  
   // Inline objective creation states
   const [showCreateObjectiveForm, setShowCreateObjectiveForm] = useState(false);
   const [creatingObjective, setCreatingObjective] = useState(false);
@@ -442,40 +445,51 @@ export default function KPICreateModal({
     }
   };
 
-  // Fetch existing objectives from KPIs in the same organizational unit
+  // Fetch existing objectives from the kpi_objectives table for this organizational unit
   const fetchObjectivesFromOrgUnit = async () => {
     try {
+      console.log('🔍 [KPI Modal] Fetching objectives...');
+      console.log('🔍 [KPI Modal] User tenant:', user?.tenantId);
+      console.log('🔍 [KPI Modal] Current org unit:', currentOrgUnit?.id, currentOrgUnit?.name);
+      console.log('🔍 [KPI Modal] Current fiscal year:', currentFiscalYear?.id, currentFiscalYear?.name);
+      
       if (!user?.tenantId || !currentOrgUnit?.id || !currentFiscalYear?.id) {
+        console.log('❌ [KPI Modal] Missing required data for objective fetch');
         setAvailableObjectives([]);
         return;
       }
       
-      // Fetch KPIs for this organizational unit using assigned-kpis endpoint
-      const url = `/kpis/assigned-kpis?unitId=${currentOrgUnit.id}`;
+      // Fetch objectives for this organizational unit and fiscal year
+      const url = `/objectives?orgUnitId=${currentOrgUnit.id}&fiscalYearId=${currentFiscalYear.id}`;
+      console.log('🔍 [KPI Modal] Fetching from URL:', url);
+      
       const response = await apiClient.get(url);
+      console.log('🔍 [KPI Modal] API Response:', response);
+      console.log('🔍 [KPI Modal] Response success:', response.success);
+      console.log('🔍 [KPI Modal] Response data:', response.data);
+      console.log('🔍 [KPI Modal] Response data type:', typeof response.data);
+      console.log('🔍 [KPI Modal] Is response.data an array?', Array.isArray(response.data));
       
       if (response.success && response.data && Array.isArray(response.data)) {
-        // Extract unique objective titles from existing KPIs
-        const objectives = new Set<string>();
-        response.data.forEach((kpi: any) => {
-          if (kpi.objectives && Array.isArray(kpi.objectives)) {
-            kpi.objectives.forEach((objective: any) => {
-              if (objective.title && objective.title.trim()) {
-                objectives.add(objective.title.trim());
-              }
-            });
-          }
-        });
+        console.log('🔍 [KPI Modal] Raw objectives data:', response.data);
         
-        const objectiveArray = Array.from(objectives).sort();
-        setAvailableObjectives(objectiveArray);
-        setFilteredObjectives(objectiveArray);
+        // Extract objective names
+        const objectiveNames = response.data
+          .map((objective: any) => objective.name)
+          .filter((name: string) => name && name.trim())
+          .sort();
+        
+        console.log('🔍 [KPI Modal] Processed objective names:', objectiveNames);
+        
+        setAvailableObjectives(objectiveNames);
+        setFilteredObjectives(objectiveNames);
       } else {
+        console.log('❌ [KPI Modal] Invalid response format or no data');
         setAvailableObjectives([]);
         setFilteredObjectives([]);
       }
     } catch (error) {
-      console.error('Error fetching objectives from organizational unit:', error);
+      console.error('❌ [KPI Modal] Error fetching objectives from organizational unit:', error);
       setAvailableObjectives([]);
       setFilteredObjectives([]);
     }
@@ -519,6 +533,12 @@ export default function KPICreateModal({
         // Add the new objective to available objectives
         setAvailableObjectives(prev => [...prev, newObjectiveData.title]);
         setFilteredObjectives(prev => [...prev, newObjectiveData.title]);
+        
+        // Store the description for this objective
+        setObjectiveDescriptions(prev => ({
+          ...prev,
+          [newObjectiveData.title]: newObjectiveForm.description.trim()
+        }));
         
         // Select the new objective
         handleObjectiveSelect(newObjectiveData.title);
@@ -681,6 +701,7 @@ export default function KPICreateModal({
         perspectiveId: form.perspective,
         parentObjectiveId: null, // Will be created by backend
         objectiveTitle: selectedObjective, // Send the objective title to be created
+        objectiveDescription: objectiveDescriptions[selectedObjective] || '', // Send the objective description if available
         name: form.name,
         description: form.description,
         code: form.code,

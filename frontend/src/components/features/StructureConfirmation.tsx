@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { CheckCircle, AlertTriangle, Lock, Calendar, Building2, Users, Activity } from 'lucide-react';
 import { ConfirmationDialog } from '@/components/ui';
+import { apiClient } from '@/lib/apiClient';
 
 interface OrgUnit {
   id: string;
@@ -126,26 +127,16 @@ export const StructureConfirmation: React.FC<StructureConfirmationProps> = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(
-        `http://localhost:5000/api/tenants/${tenantId}/fiscal-years/${fiscalYear.id}/confirm-structure`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
+      const response = await apiClient.post(
+        `/tenants/${tenantId}/fiscal-years/${fiscalYear.id}/confirm-structure`
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to confirm structure');
+      if (response.success) {
+        onConfirmationUpdate((response.data as any).data);
+        setShowConfirmDialog(false);
+      } else {
+        throw new Error(response.error?.message || 'Failed to confirm structure');
       }
-
-      const result = await response.json();
-      onConfirmationUpdate(result.data);
-      setShowConfirmDialog(false);
     } catch (err) {
       console.error('Error confirming structure:', err);
       setError(err instanceof Error ? err.message : 'Failed to confirm structure');

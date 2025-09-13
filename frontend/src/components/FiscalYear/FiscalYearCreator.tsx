@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { X, Calendar, Save } from 'lucide-react';
+import { apiClient } from '@/lib/apiClient';
 
 interface FiscalYear {
   id: string;
@@ -56,19 +57,10 @@ const FiscalYearCreator: React.FC<FiscalYearCreatorProps> = ({
     setError('');
 
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(`http://localhost:5000/api/tenants/${tenantId}/fiscal-years`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+      const response = await apiClient.post(`/tenants/${tenantId}/fiscal-years`, formData);
 
-      if (response.ok) {
-        const newFiscalYear = await response.json();
-        onFiscalYearCreated(newFiscalYear);
+      if (response.success) {
+        onFiscalYearCreated(response.data as FiscalYear);
         onClose();
         // Reset form
         setFormData({
@@ -78,8 +70,7 @@ const FiscalYearCreator: React.FC<FiscalYearCreatorProps> = ({
           isCurrent: false
         });
       } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to create fiscal year');
+        setError(response.error?.message || 'Failed to create fiscal year');
       }
     } catch (error) {
       console.error('Error creating fiscal year:', error);

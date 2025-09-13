@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { apiClient } from '@/lib/apiClient';
 import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { Button, Card, Input } from '@/components/ui';
@@ -46,19 +47,12 @@ function TenantManagementContent() {
   useEffect(() => {
     const loadTenants = async () => {
       try {
-        const token = localStorage.getItem('metricsoft_auth_token');
-        const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await apiClient.get('/admin/tenants');
         
-        if (response.ok) {
-          const result = await response.json();
-          setTenants(result.data);
+        if (response.success) {
+          setTenants(response.data as Tenant[]);
         } else {
-          const error = await response.json();
-          setErrorMessage(error.error || 'Failed to load tenants');
+          setErrorMessage(response.error?.message || 'Failed to load tenants');
         }
       } catch (error) {
         console.error('Error loading tenants:', error);
@@ -112,29 +106,19 @@ function TenantManagementContent() {
     setSuccessMessage('');
 
     try {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...formData,
-          allowedDomains: allowedDomainsArray
-        })
+      const response = await apiClient.post('/admin/tenants', {
+        ...formData,
+        allowedDomains: allowedDomainsArray
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        setTenants([...tenants, result.data.tenant]);
+      if (response.success) {
+        setTenants([...tenants, (response.data as any).tenant]);
         setSuccessMessage(`Tenant "${formData.name}" created successfully! Organization Admin: ${formData.adminEmail}`);
         setShowCreateForm(false);
         setFormData({ name: '', subdomain: '', adminEmail: '', adminName: '', allowedDomains: '' });
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        const error = await response.json();
-        setErrorMessage(error.error || 'Failed to create tenant');
+        setErrorMessage(response.error?.message || 'Failed to create tenant');
       }
     } catch (error) {
       console.error('Error creating tenant:', error);

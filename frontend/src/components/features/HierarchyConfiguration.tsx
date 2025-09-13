@@ -70,10 +70,6 @@ export function HierarchyConfiguration({ tenantId, fiscalYearId, onSuccess, onEr
   // Load existing level definitions
   useEffect(() => {
     if (tenantId && fiscalYearId) {
-      const token = localStorage.getItem('metricsoft_auth_token');
-      if (token) {
-        apiClient.setAuthToken(token);
-      }
       loadLevelDefinitions();
     } else {
       setLoading(false);

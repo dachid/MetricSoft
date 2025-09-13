@@ -160,8 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       safeLocalStorage.setItem('metricsoft_auth_token', token)
       safeLocalStorage.setItem('metricsoft_user', JSON.stringify(user))
       setUser(user)
-      // Set the token in the API client
-      apiClient.setAuthToken(token)
+      // Set the token in the API client (deprecated - now using HTTP-only cookies)
+      // apiClient.setAuthToken(token)
       
       return { success: true }
     } catch (error: any) {
@@ -191,8 +191,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       safeLocalStorage.setItem('metricsoft_auth_token', token)
       safeLocalStorage.setItem('metricsoft_user', JSON.stringify(user))
       setUser(user)
-      // Set the token in the API client
-      apiClient.setAuthToken(token)
+      // Set the token in the API client (deprecated - now using HTTP-only cookies)
+      // apiClient.setAuthToken(token)
       
       return { success: true }
     } catch (error: any) {

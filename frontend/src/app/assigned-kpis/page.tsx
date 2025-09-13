@@ -9,6 +9,7 @@ import { apiClient } from '@/lib/apiClient';
 import KPICreateModal from '@/components/KPI/KPICreateModal';
 import KPIViewModal from '@/components/KPI/KPIViewModal';
 import KPIShareModal from '@/components/KPI/KPIShareModal';
+import KPIExitComponentModal from '@/components/KPI/KPIExitComponentModal';
 
 // New comprehensive KPI types based on our schema
 interface KPI {
@@ -216,6 +217,7 @@ export default function AssignedKPIsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isExitComponentModalOpen, setIsExitComponentModalOpen] = useState(false);
   const [selectedKpi, setSelectedKpi] = useState<KPI | null>(null);
   const [selectedOrgUnitForKPI, setSelectedOrgUnitForKPI] = useState<OrgUnit | null>(null);
   
@@ -416,6 +418,11 @@ export default function AssignedKPIsPage() {
     setIsShareModalOpen(true);
   };
 
+  const openExitComponentModal = (kpi: KPI) => {
+    setSelectedKpi(kpi);
+    setIsExitComponentModalOpen(true);
+  };
+
   const viewOrgUnitKPIs = (orgUnit: OrgUnit) => {
     setSelectedOrgUnitForView(orgUnit);
     setSelectedOrgUnit(orgUnit.id);
@@ -432,6 +439,7 @@ export default function AssignedKPIsPage() {
     setIsCreateModalOpen(false);
     setIsViewModalOpen(false);
     setIsShareModalOpen(false);
+    setIsExitComponentModalOpen(false);
     setSelectedKpi(null);
     setError(null);
   };
@@ -786,6 +794,15 @@ export default function AssignedKPIsPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
                               </svg>
                             </button>
+                            <button
+                              onClick={() => openExitComponentModal(kpi)}
+                              className="text-purple-600 hover:text-purple-900 text-sm"
+                              title="Add Initiatives"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -950,6 +967,17 @@ export default function AssignedKPIsPage() {
           kpi={selectedKpi as any}
           onUpdate={(updatedKpi) => {
             setKpis(kpis.map(k => k.id === updatedKpi.id ? updatedKpi as any : k));
+          }}
+        />
+
+        <KPIExitComponentModal
+          isOpen={isExitComponentModalOpen}
+          onClose={closeModals}
+          kpiId={selectedKpi?.id || ''}
+          onSuccess={() => {
+            // Optionally refresh KPI data or show success message
+            fetchKPIsForOrgUnits();
+            closeModals();
           }}
         />
       </div>

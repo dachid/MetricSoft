@@ -130,6 +130,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       perspectiveId,
       parentObjectiveId,
       objectiveTitle,
+      objectiveDescription,
       name,
       description,
       code,
@@ -239,7 +240,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
             fiscalYearId,
             orgUnitId,
             name: objectiveTitle.trim(),
-            description: '', // Default empty description
+            description: objectiveDescription?.trim() || '',
             createdById: authResult.user!.id
           }
         });
@@ -261,7 +262,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
           createdById: authResult.user!.id,
           isRecurring,
           frequency: isRecurring ? frequency : null,
-          dueDate: !isRecurring ? dueDate : null
+          dueDate: !isRecurring && dueDate ? new Date(dueDate) : null
         }
       });
 

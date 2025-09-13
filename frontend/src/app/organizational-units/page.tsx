@@ -274,23 +274,16 @@ export default function OrganizationalUnitsPage() {
       console.log('isSuperAdmin:', isSuperAdmin, 'user:', user)
       
       try {
-        const token = localStorage.getItem('metricsoft_auth_token')
-        
         if (isSuperAdmin) {
           console.log('Loading tenants for Super Admin')
           // Super Admin: Load all tenants
-          const response = await fetch(`http://localhost:5000/api/admin/tenants`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          })
+          const response = await apiClient.get('/admin/tenants');
           
-          if (response.ok) {
-            const result = await response.json()
-            console.log('Super Admin tenants loaded:', result.data)
-            setAvailableTenants(result.data || [])
-            if ((result.data || []).length > 0 && !selectedTenantId) {
-              setSelectedTenantId((result.data || [])[0].id)
+          if (response.success) {
+            console.log('Super Admin tenants loaded:', response.data)
+            setAvailableTenants(response.data as any[] || [])
+            if ((response.data as any[] || []).length > 0 && !selectedTenantId) {
+              setSelectedTenantId((response.data as any[] || [])[0].id)
             }
           }
         } else if (user?.tenantId) {

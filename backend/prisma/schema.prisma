@@ -28,6 +28,7 @@ model User {
   evaluatedKPIs          KPI[]                   @relation("EvaluatedKPIs")
   createdKPIs            KPI[]                   @relation("CreatedKPIs")
   createdObjectives      KPIObjective[]          @relation("CreatedObjectives")
+  createdComponents      PerformanceComponent[]  @relation("CreatedComponents")
   sharedKPIs             KPIShare[]              @relation("SharedKPIs")
   sharedByKPIs           KPIShare[]              @relation("SharedByKPIs")
   kpiAudits              KPIAuditLog[]           @relation("KPIAudits")
@@ -295,6 +296,7 @@ model PerformanceComponentTemplate {
   updatedAt          DateTime                         @updatedAt
   entryRelationships PerformanceCascadeRelationship[] @relation("EntryComponent")
   exitRelationships  PerformanceCascadeRelationship[] @relation("ExitComponent")
+  components         PerformanceComponent[]           // Components created from this template
   fiscalYear         FiscalYear                       @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
   orgLevel           FiscalYearLevelDefinition        @relation(fields: [orgLevelId], references: [id], onDelete: Cascade)
 
@@ -335,6 +337,11 @@ model OrgUnitKpiChampion {
   @@map("org_unit_kpi_champions")
 }
 
+enum ComponentType {
+  ENTRY
+  EXIT
+}
+
 model PerformanceComponent {
   id                    String                  @id @default(cuid())
   tenantId              String
@@ -346,7 +353,17 @@ model PerformanceComponent {
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   
+  // New fields for KPI exit components
+  kpiId                 String?                 // For KPI exit components
+  templateId            String?                 // Link to template if created from template
+  componentType         ComponentType           @default(ENTRY)
+  createdById           String?                 // Who created this component
+  
   tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kpi                   KPI?                    @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  template              PerformanceComponentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy             User?                   @relation("CreatedComponents", fields: [createdById], references: [id], onDelete: SetNull)
+  
   individualKpis        IndividualKPI[]
   organizationalKpis    OrganizationalKPI[]
 
@@ -451,6 +468,7 @@ model KPI {
   createdBy         User              @relation("CreatedKPIs", fields: [createdById], references: [id], onDelete: Cascade)
   
   target            KPITarget?
+  exitComponents    PerformanceComponent[]
   shares            KPIShare[]
   auditLogs         KPIAuditLog[]
 

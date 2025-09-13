@@ -7,8 +7,13 @@ export const dynamic = 'force-dynamic';
 
 // GET /api/objectives - Get objectives for autocomplete
 export const GET = createApiRoute(async (request: NextRequest) => {
+  console.log('🔍 [Objectives API] GET /api/objectives called');
+  
   const authResult = await authMiddleware(request);
+  console.log('🔍 [Objectives API] Auth result:', { success: authResult.success, userId: authResult.user?.id, tenantId: authResult.user?.tenantId });
+  
   if (!authResult.success) {
+    console.log('❌ [Objectives API] Authentication failed:', authResult.error);
     throw new AuthenticationError(authResult.error || 'Authentication required');
   }
 
@@ -16,8 +21,11 @@ export const GET = createApiRoute(async (request: NextRequest) => {
   const orgUnitId = searchParams.get('orgUnitId');
   const fiscalYearId = searchParams.get('fiscalYearId');
   const search = searchParams.get('search');
+  
+  console.log('🔍 [Objectives API] Search params:', { orgUnitId, fiscalYearId, search });
 
   if (!orgUnitId || !fiscalYearId) {
+    console.log('❌ [Objectives API] Missing required params');
     throw new ValidationError('Organization unit ID and fiscal year ID are required');
   }
 
@@ -35,6 +43,8 @@ export const GET = createApiRoute(async (request: NextRequest) => {
         mode: 'insensitive'
       };
     }
+    
+    console.log('🔍 [Objectives API] Where clause:', whereClause);
 
     const objectives = await (prisma as any).kPIObjective.findMany({
       where: whereClause,
@@ -48,14 +58,17 @@ export const GET = createApiRoute(async (request: NextRequest) => {
       },
       take: 20
     });
+    
+    console.log('🔍 [Objectives API] Found objectives:', objectives.length);
+    console.log('🔍 [Objectives API] Objectives data:', objectives);
 
-    return NextResponse.json({
+    return {
       success: true,
       data: objectives
-    });
+    };
 
   } catch (error) {
-    console.error('Get objectives error:', error);
+    console.error('❌ [Objectives API] Get objectives error:', error);
     throw new DatabaseError('Failed to fetch objectives');
   }
 });
