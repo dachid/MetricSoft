@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { authMiddleware } from '@/lib/middleware/auth';
 import { ApiErrorHandler, AuthenticationError, AuthorizationError, ValidationError } from '@/lib/errors';
 
-// GET /api/tenants/[id]/org-units/[unitId]/users - Get users assigned to org unit
+// GET /api/tenants/[id]/org-units/[orgUnitId]/users - Get users assigned to org unit
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; unitId: string } }
+  { params }: { params: { id: string; orgUnitId: string } }
 ) {
   try {
     const authResult = await authMiddleware(request);
@@ -14,7 +14,7 @@ export async function GET(
       throw new AuthenticationError(authResult.error || 'Authentication required');
     }
 
-    const { id: tenantId, unitId } = params;
+    const { id: tenantId, orgUnitId } = params;
     
     // Verify user has access to this tenant
     if (authResult.user?.tenantId !== tenantId) {
@@ -26,7 +26,7 @@ export async function GET(
 
     // Build where clause for assignments
     const whereClause: any = {
-      orgUnitId: unitId,
+      orgUnitId: orgUnitId,
       ...(includeHistorical ? {} : { effectiveTo: null })
     };
 
@@ -78,10 +78,10 @@ export async function GET(
   }
 }
 
-// POST /api/tenants/[id]/org-units/[unitId]/users - Assign user to org unit
+// POST /api/tenants/[id]/org-units/[orgUnitId]/users - Assign user to org unit
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string; unitId: string } }
+  { params }: { params: { id: string; orgUnitId: string } }
 ) {
   try {
     const authResult = await authMiddleware(request);
@@ -89,7 +89,7 @@ export async function POST(
       throw new AuthenticationError(authResult.error || 'Authentication required');
     }
 
-    const { id: tenantId, unitId } = params;
+    const { id: tenantId, orgUnitId } = params;
     
     // Verify user has access to this tenant
     if (authResult.user?.tenantId !== tenantId) {
@@ -119,7 +119,7 @@ export async function POST(
     // Verify org unit exists and belongs to this tenant
     const orgUnit = await (prisma as any).orgUnit.findFirst({
       where: {
-        id: unitId,
+        id: orgUnitId,
         tenantId,
         isActive: true
       },
@@ -136,7 +136,7 @@ export async function POST(
     const existingAssignment = await (prisma as any).userOrgAssignment.findFirst({
       where: {
         userId,
-        orgUnitId: unitId,
+        orgUnitId: orgUnitId,
         effectiveTo: null
       }
     });
@@ -149,7 +149,7 @@ export async function POST(
     const newAssignment = await (prisma as any).userOrgAssignment.create({
       data: {
         userId,
-        orgUnitId: unitId,
+        orgUnitId: orgUnitId,
         role: role || 'MEMBER',
         effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date()
       },
@@ -187,10 +187,10 @@ export async function POST(
   }
 }
 
-// PUT /api/tenants/[tenantId]/org-units/[unitId]/users/[userId] - Update user assignment
+// PUT /api/tenants/[tenantId]/org-units/[orgUnitId]/users/[userId] - Update user assignment
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { tenantId: string; unitId: string; userId: string } }
+  { params }: { params: { tenantId: string; orgUnitId: string; userId: string } }
 ) {
   try {
     const authResult = await authMiddleware(request);
@@ -198,7 +198,7 @@ export async function PUT(
       throw new AuthenticationError(authResult.error || 'Authentication required');
     }
 
-    const { tenantId, unitId, userId } = params;
+    const { tenantId, orgUnitId, userId } = params;
     
     // Verify user has access to this tenant
     if (authResult.user?.tenantId !== tenantId) {
@@ -212,7 +212,7 @@ export async function PUT(
     const existingAssignment = await (prisma as any).userOrgAssignment.findFirst({
       where: {
         userId,
-        orgUnitId: unitId,
+        orgUnitId: orgUnitId,
         effectiveTo: null
       }
     });
@@ -266,10 +266,10 @@ export async function PUT(
   }
 }
 
-// DELETE /api/tenants/[tenantId]/org-units/[unitId]/users/[userId] - End user assignment
+// DELETE /api/tenants/[tenantId]/org-units/[orgUnitId]/users/[userId] - End user assignment
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { tenantId: string; unitId: string; userId: string } }
+  { params }: { params: { tenantId: string; orgUnitId: string; userId: string } }
 ) {
   try {
     const authResult = await authMiddleware(request);
@@ -277,7 +277,7 @@ export async function DELETE(
       throw new AuthenticationError(authResult.error || 'Authentication required');
     }
 
-    const { tenantId, unitId, userId } = params;
+    const { tenantId, orgUnitId, userId } = params;
     
     // Verify user has access to this tenant
     if (authResult.user?.tenantId !== tenantId) {
@@ -288,7 +288,7 @@ export async function DELETE(
     const existingAssignment = await (prisma as any).userOrgAssignment.findFirst({
       where: {
         userId,
-        orgUnitId: unitId,
+        orgUnitId: orgUnitId,
         effectiveTo: null
       },
       include: {

@@ -11,19 +11,40 @@ export async function GET(request: NextRequest) {
 
     const user = authResult.user;
 
-    const kpis = await prisma.individualKPI.findMany({
+    // Get all KPIs created by the user, then filter for individual KPIs (orgUnitId is null)
+    const allKpis = await prisma.kPI.findMany({
       where: {
-        userId: user.id,
+        createdById: user.id,
       },
       include: {
-        component: true,
+        target: true,
+        perspective: true,
+        orgUnit: true,
+        evaluator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            profilePicture: true
+          }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          }
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return NextResponse.json(kpis);
+    // Filter to only individual KPIs (where orgUnitId is null)
+    const individualKpis = allKpis.filter(kpi => kpi.orgUnitId === null);
+
+    return NextResponse.json(individualKpis);
   } catch (error) {
     console.error('Error fetching individual KPIs:', error);
     return NextResponse.json(
@@ -34,61 +55,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const authResult = await authMiddleware(request);
-    if (!authResult.success || !authResult.user) {
-      return NextResponse.json({ error: authResult.error || 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = authResult.user;
-
-    const body = await request.json();
-    const { name, description, targetValue, unit, componentId } = body;
-
-    if (!name || !targetValue || !unit || !componentId) {
-      return NextResponse.json(
-        { error: 'Name, target value, unit, and component are required' },
-        { status: 400 }
-      );
-    }
-
-    // Verify the component exists and is for individual level
-    const component = await prisma.performanceComponent.findFirst({
-      where: {
-        id: componentId,
-        tenantId: user.tenantId || '',
-        organizationalLevel: 'INDIVIDUAL',
-        isActive: true,
-      },
-    });
-
-    if (!component) {
-      return NextResponse.json(
-        { error: 'Invalid component or component not found' },
-        { status: 400 }
-      );
-    }
-
-    const kpi = await prisma.individualKPI.create({
-      data: {
-        userId: user.id,
-        componentId,
-        name,
-        description,
-        targetValue: parseFloat(targetValue.toString()),
-        unit,
-      },
-      include: {
-        component: true,
-      },
-    });
-
-    return NextResponse.json(kpi, { status: 201 });
-  } catch (error) {
-    console.error('Error creating individual KPI:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+  // This endpoint is no longer used - all KPIs are created via /api/kpis
+  // Individual KPIs are distinguished by having orgUnitId = null
+  return NextResponse.json(
+    { error: 'Use /api/kpis endpoint for creating KPIs' },
+    { status: 400 }
+  );
 }

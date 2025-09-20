@@ -176,6 +176,7 @@ model OrgUnit {
   organizationalKpis OrganizationalKPI[]
   kpis              KPI[]
   kpiObjectives     KPIObjective[]
+  performanceComponents PerformanceComponent[]
 
   @@unique([fiscalYearId, levelDefinitionId, code])
   @@map("org_units")
@@ -345,6 +346,7 @@ enum ComponentType {
 model PerformanceComponent {
   id                    String                  @id @default(cuid())
   tenantId              String
+  orgUnitId             String?                 // Optional - specific org unit this component belongs to
   name                  String
   description           String?
   organizationalLevel   String
@@ -360,6 +362,7 @@ model PerformanceComponent {
   createdById           String?                 // Who created this component
   
   tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orgUnit               OrgUnit?                @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
   kpi                   KPI?                    @relation(fields: [kpiId], references: [id], onDelete: Cascade)
   template              PerformanceComponentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   createdBy             User?                   @relation("CreatedComponents", fields: [createdById], references: [id], onDelete: SetNull)
@@ -446,9 +449,9 @@ model KPI {
   id                      String            @id @default(cuid())
   tenantId                String
   fiscalYearId            String
-  orgUnitId               String
+  orgUnitId               String?
   perspectiveId           String?
-  parentObjectiveId       String?
+  objectiveId             String
   performanceComponentId  String?           @map("performance_component_id") // Link to performance component (initiative)
   name                    String
   description             String?
@@ -464,9 +467,9 @@ model KPI {
   
   tenant                  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   fiscalYear              FiscalYear        @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  orgUnit                 OrgUnit           @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  orgUnit                 OrgUnit?          @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
   perspective             FiscalYearPerspective? @relation(fields: [perspectiveId], references: [id], onDelete: SetNull)
-  parentObjective         KPIObjective?     @relation(fields: [parentObjectiveId], references: [id], onDelete: SetNull)
+  objective               KPIObjective      @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
   performanceComponent    PerformanceComponent? @relation("KPIPerformanceComponent", fields: [performanceComponentId], references: [id], onDelete: SetNull)
   evaluator               User              @relation("EvaluatedKPIs", fields: [evaluatorId], references: [id], onDelete: Cascade)
   createdBy               User              @relation("CreatedKPIs", fields: [createdById], references: [id], onDelete: Cascade)

@@ -22,6 +22,7 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const levelId = searchParams.get('levelId');
     const componentType = searchParams.get('componentType');
+    const orgUnitId = searchParams.get('orgUnitId');
 
     // Verify tenant access - Super Admins can access any tenant
     const isSuperAdmin = authResult.user.roles?.some((role: any) => role.code === 'SUPER_ADMIN');
@@ -40,13 +41,21 @@ export async function GET(
         return NextResponse.json({ error: 'Organizational level not found' }, { status: 404 });
       }
 
+      // Build where clause with optional orgUnitId filter
+      const whereClause: any = {
+        tenantId,
+        organizationalLevel: orgLevel.name, // Match by level name
+        componentType: componentType as 'ENTRY' | 'EXIT'
+      };
+
+      // If orgUnitId is provided, filter by it
+      if (orgUnitId) {
+        whereClause.orgUnitId = orgUnitId;
+      }
+
       // Query the performance_components table for actual components
       const components = await prisma.performanceComponent.findMany({
-        where: {
-          tenantId,
-          organizationalLevel: orgLevel.name, // Match by level name
-          componentType: componentType as 'ENTRY' | 'EXIT'
-        },
+        where: whereClause,
         orderBy: [
           { name: 'asc' }
         ]
@@ -56,8 +65,9 @@ export async function GET(
       const transformedComponents = components.map(comp => ({
         id: comp.id,
         componentName: comp.name,
-        componentType: comp.componentType,
-        organizationalLevel: comp.organizationalLevel
+        componentType: (comp as any).componentType,
+        organizationalLevel: comp.organizationalLevel,
+        orgUnitId: (comp as any).orgUnitId
       }));
 
       return NextResponse.json(transformedComponents, { status: 200 });

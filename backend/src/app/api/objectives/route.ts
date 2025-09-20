@@ -75,8 +75,11 @@ export const GET = createApiRoute(async (request: NextRequest) => {
 
 // POST /api/objectives - Create new objective
 export const POST = createApiRoute(async (request: NextRequest) => {
+  console.log('🔍 [Objectives API] POST request received');
+  
   const authResult = await authMiddleware(request);
   if (!authResult.success) {
+    console.log('❌ [Objectives API] Authentication failed:', authResult.error);
     throw new AuthenticationError(authResult.error || 'Authentication required');
   }
 
@@ -89,6 +92,8 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       description,
       parentExitComponentId
     } = body;
+
+    console.log('🔍 [Objectives API] Create objective request:', { fiscalYearId, orgUnitId, name, description, userId: authResult.user!.id });
 
     // Validation
     if (!fiscalYearId || !orgUnitId || !name) {
@@ -129,7 +134,10 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       }
     });
 
+    console.log('🔍 [Objectives API] KPI Champion check:', { orgUnitId, userId: authResult.user!.id, isKpiChampion: !!isKpiChampion });
+
     if (!isKpiChampion) {
+      console.log('❌ [Objectives API] User is not a KPI champion for org unit:', orgUnitId);
       throw new AuthorizationError('User is not a KPI champion for this organizational unit');
     }
 
@@ -152,7 +160,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
     }, { status: 201 });
 
   } catch (error) {
-    console.error('Create objective error:', error);
+    console.error('❌ [Objectives API] Create objective error:', error);
     if (error instanceof ValidationError || error instanceof AuthorizationError) {
       throw error;
     }

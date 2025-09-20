@@ -59,7 +59,7 @@ export const GET = createApiRoute(async (request: NextRequest) => {
       include: {
         target: true,
         perspective: true,
-        parentObjective: true,
+        objective: true,
         evaluator: {
           select: {
             id: true,
@@ -136,9 +136,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       fiscalYearId,
       orgUnitId,
       perspectiveId,
-      parentObjectiveId,
-      objectiveTitle,
-      objectiveDescription,
+      objectiveId,
       performanceComponentId,
       name,
       description,
@@ -153,6 +151,11 @@ export const POST = createApiRoute(async (request: NextRequest) => {
     // Validation
     if (!fiscalYearId || !orgUnitId || !name || !code || !evaluatorId) {
       throw new ValidationError('Missing required fields');
+    }
+
+    // Require objectiveId since frontend always provides it
+    if (!objectiveId) {
+      throw new ValidationError('objectiveId is required');
     }
 
     // Verify fiscal year exists and is current
@@ -196,11 +199,55 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       throw new AuthorizationError('User is not a KPI champion for this organizational unit');
     }
 
-    // Verify perspective exists if provided
-    if (perspectiveId) {
+    // Auto-resolve perspective for child org units
+    let finalPerspectiveId = perspectiveId;
+    
+    if (!finalPerspectiveId && orgUnit.parentId) {
+      // This is a child unit, resolve perspective from root unit
+      let currentUnit = orgUnit;
+      
+      // Traverse up to find root unit
+      while (currentUnit?.parentId) {
+        const parentUnit = await prisma.orgUnit.findFirst({
+          where: {
+            id: currentUnit.parentId,
+            tenantId: authResult.user.tenantId
+          },
+          include: {
+            levelDefinition: true
+          }
+        });
+        
+        if (!parentUnit) {
+          throw new ValidationError('Invalid organizational hierarchy');
+        }
+        
+        currentUnit = parentUnit;
+      }
+      
+      // Get the first active perspective for this fiscal year (root unit's perspective)
+      const rootPerspectives = await prisma.fiscalYearPerspective.findMany({
+        where: {
+          fiscalYearId,
+          isActive: true
+        },
+        orderBy: {
+          createdAt: 'asc'
+        },
+        take: 1
+      });
+      
+      if (rootPerspectives.length > 0) {
+        finalPerspectiveId = rootPerspectives[0].id;
+        console.log(`🔍 [KPI API] Auto-resolved perspective for child unit ${orgUnitId}: ${finalPerspectiveId}`);
+      }
+    }
+
+    // Verify perspective exists if we have one
+    if (finalPerspectiveId) {
       const perspective = await prisma.fiscalYearPerspective.findFirst({
         where: {
-          id: perspectiveId,
+          id: finalPerspectiveId,
           fiscalYearId,
           isActive: true
         }
@@ -239,31 +286,14 @@ export const POST = createApiRoute(async (request: NextRequest) => {
 
     // Create KPI with target in a transaction
     const result = await prisma.$transaction(async (tx: any) => {
-      let actualParentObjectiveId = parentObjectiveId;
-
-      // Create objective if objectiveTitle is provided
-      if (objectiveTitle && objectiveTitle.trim()) {
-        const objective = await tx.kPIObjective.create({
-          data: {
-            tenantId: authResult.user!.tenantId,
-            fiscalYearId,
-            orgUnitId,
-            name: objectiveTitle.trim(),
-            description: objectiveDescription?.trim() || '',
-            createdById: authResult.user!.id
-          }
-        });
-        actualParentObjectiveId = objective.id;
-      }
-
       // Create the KPI
       const kpi = await tx.kPI.create({
         data: {
           tenantId: authResult.user!.tenantId,
           fiscalYearId,
           orgUnitId,
-          perspectiveId,
-          parentObjectiveId: actualParentObjectiveId,
+          perspectiveId: finalPerspectiveId,
+          objectiveId: objectiveId,
           performanceComponentId,
           name,
           description,
@@ -321,7 +351,7 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       include: {
         target: true,
         perspective: true,
-        parentObjective: true,
+        objective: true,
         evaluator: {
           select: {
             id: true,

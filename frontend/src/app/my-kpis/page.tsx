@@ -5,35 +5,48 @@ import DashboardLayout from '@/components/Layout/DashboardLayout';
 import { useAuth } from '@/lib/auth-context';
 import { useTerminology } from '@/hooks/useTerminology';
 import { apiClient } from '@/lib/apiClient';
+import IndividualKPICreateModal from '@/components/KPI/IndividualKPICreateModal';
 
-interface PerformanceComponent {
+interface OrgUnit {
   id: string;
   name: string;
-  description?: string;
-  weight: number;
-  organizationalLevel: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  profilePicture?: string;
+}
+
+interface Perspective {
+  id: string;
+  name: string;
+}
+
+interface KPITarget {
+  id: string;
+  targetValue: number;
+  unit: string;
 }
 
 interface KPI {
   id: string;
   name: string;
   description?: string;
-  targetValue: number;
-  currentValue: number;
-  unit: string;
-  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE';
-  componentId: string;
-  component: PerformanceComponent;
+  code: string;
+  orgUnitId?: string | null; // null for individual KPIs
+  orgUnit?: OrgUnit | null;
+  evaluator: User;
+  createdBy: User;
+  perspective?: Perspective | null;
+  target?: KPITarget | null;
+  isRecurring: boolean;
+  frequency?: string | null;
+  dueDate?: string | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-interface NewKPI {
-  name: string;
-  description: string;
-  targetValue: number;
-  unit: string;
-  componentId: string;
 }
 
 const statusColors = {
@@ -54,22 +67,13 @@ export default function MyKPIsPage() {
   const { user } = useAuth();
   const { terminology } = useTerminology();
   const [kpis, setKpis] = useState<KPI[]>([]);
-  const [components, setComponents] = useState<PerformanceComponent[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedKpi, setSelectedKpi] = useState<KPI | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [newKpi, setNewKpi] = useState<NewKPI>({
-    name: '',
-    description: '',
-    targetValue: 0,
-    unit: '',
-    componentId: '',
-  });
 
   useEffect(() => {
     fetchMyKPIs();
-    fetchIndividualComponents();
   }, []);
 
   const fetchMyKPIs = async () => {
@@ -82,39 +86,6 @@ export default function MyKPIsPage() {
       console.error('Error fetching my KPIs:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchIndividualComponents = async () => {
-    try {
-      const response = await apiClient.get('/performance-components?level=INDIVIDUAL');
-      if (response.success && response.data) {
-        setComponents(Array.isArray(response.data) ? response.data : []);
-      }
-    } catch (error) {
-      console.error('Error fetching performance components:', error);
-    }
-  };
-
-  const handleCreateKPI = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await apiClient.post('/kpis/my-kpis', newKpi);
-
-      if (response.success && response.data) {
-        const createdKpi = response.data as KPI;
-        setKpis([...kpis, createdKpi]);
-        setIsModalOpen(false);
-        setNewKpi({
-          name: '',
-          description: '',
-          targetValue: 0,
-          unit: '',
-          componentId: '',
-        });
-      }
-    } catch (error) {
-      console.error('Error creating KPI:', error);
     }
   };
 
@@ -200,7 +171,7 @@ export default function MyKPIsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {kpis.map((kpi) => {
-              const progress = getProgressPercentage(kpi.currentValue, kpi.targetValue);
+              const progress = kpi.target ? getProgressPercentage(0, kpi.target.targetValue) : 0;
               return (
                 <div
                   key={kpi.id}
@@ -212,11 +183,9 @@ export default function MyKPIsPage() {
                       {kpi.name}
                     </h3>
                     <span
-                      className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        statusColors[kpi.status]
-                      }`}
+                      className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800"
                     >
-                      {statusLabels[kpi.status]}
+                      Active
                     </span>
                   </div>
                   
@@ -228,7 +197,7 @@ export default function MyKPIsPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Progress</span>
                       <span className="font-medium">
-                        {kpi.currentValue} / {kpi.targetValue} {kpi.unit}
+                        Target: {kpi.target?.targetValue || 'Not set'} {kpi.target?.unit || ''}
                       </span>
                     </div>
                     
@@ -240,7 +209,7 @@ export default function MyKPIsPage() {
                     </div>
                     
                     <div className="text-xs text-gray-500">
-                      Component: {kpi.component.name}
+                      {kpi.orgUnit ? `Org Unit: ${kpi.orgUnit.name}` : 'Individual KPI'}
                     </div>
                   </div>
                 </div>
@@ -250,12 +219,22 @@ export default function MyKPIsPage() {
         )}
 
         {/* Modal */}
-        {isModalOpen && (
+        <IndividualKPICreateModal
+          isOpen={isModalOpen && !isViewMode}
+          onClose={closeModal}
+          onKPICreated={() => {
+            fetchMyKPIs();
+            closeModal();
+          }}
+        />
+
+        {/* View KPI Modal */}
+        {isModalOpen && isViewMode && selectedKpi && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">
-                  {isViewMode ? `${terminology.kpis} Details` : `Create New ${terminology.kpis}`}
+                  {terminology.kpis} Details
                 </h2>
                 <button
                   onClick={closeModal}
@@ -267,140 +246,40 @@ export default function MyKPIsPage() {
                 </button>
               </div>
 
-              {isViewMode && selectedKpi ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Current Progress
-                    </label>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        value={selectedKpi.currentValue}
-                        onChange={(e) => {
-                          const newValue = Number(e.target.value);
-                          setSelectedKpi({ ...selectedKpi, currentValue: newValue });
-                        }}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <span className="text-sm text-gray-600">/ {selectedKpi.targetValue} {selectedKpi.unit}</span>
-                      <button
-                        onClick={() => handleUpdateProgress(selectedKpi.id, selectedKpi.currentValue)}
-                        className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm"
-                      >
-                        Update
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description
-                    </label>
-                    <p className="text-sm text-gray-600">{selectedKpi.description}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Performance Component
-                    </label>
-                    <p className="text-sm text-gray-600">{selectedKpi.component.name}</p>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-medium text-gray-900">{selectedKpi.name}</h3>
+                  <p className="text-sm text-gray-600">{selectedKpi.description}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Value
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg font-semibold">
+                      {selectedKpi.target?.targetValue || 'Not set'}
+                    </span>
+                    <span className="text-sm text-gray-600">{selectedKpi.target?.unit || ''}</span>
                   </div>
                 </div>
-              ) : (
-                <form onSubmit={handleCreateKPI} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      KPI Name
-                    </label>
-                    <input
-                      type="text"
-                      value={newKpi.name}
-                      onChange={(e) => setNewKpi({ ...newKpi, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    />
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      value={newKpi.description}
-                      onChange={(e) => setNewKpi({ ...newKpi, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      rows={3}
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Type
+                  </label>
+                  <p className="text-sm text-gray-600">
+                    {selectedKpi.orgUnit ? `Organizational (${selectedKpi.orgUnit.name})` : 'Individual KPI'}
+                  </p>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Performance Component
-                    </label>
-                    <select
-                      value={newKpi.componentId}
-                      onChange={(e) => setNewKpi({ ...newKpi, componentId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    >
-                      <option value="">Select a component</option>
-                      {components.map((component) => (
-                        <option key={component.id} value={component.id}>
-                          {component.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Target Value
-                      </label>
-                      <input
-                        type="number"
-                        value={newKpi.targetValue}
-                        onChange={(e) => setNewKpi({ ...newKpi, targetValue: Number(e.target.value) })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Unit
-                      </label>
-                      <input
-                        type="text"
-                        value={newKpi.unit}
-                        onChange={(e) => setNewKpi({ ...newKpi, unit: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g., %, hours, units"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Create KPI
-                    </button>
-                  </div>
-                </form>
-              )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Evaluator
+                  </label>
+                  <p className="text-sm text-gray-600">{selectedKpi.evaluator.name}</p>
+                </div>
+              </div>
             </div>
           </div>
         )}

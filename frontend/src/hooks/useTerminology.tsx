@@ -21,8 +21,10 @@ const defaultTerminology: TerminologyConfig = {
   perspectivesPlural: 'Perspectives',
   objectives: 'Objective', 
   objectivesPlural: 'Objectives',
+  objective: 'Objective', // Singular form for objectives
   kpis: 'KPI',
   kpisPlural: 'KPIs',
+  kpi: 'KPI', // Singular form for KPIs
   targets: 'Target',
   targetsPlural: 'Targets',
   performance: 'Performance',

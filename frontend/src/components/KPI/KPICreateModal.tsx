@@ -663,7 +663,8 @@ export default function KPICreateModal({
       return;
     }
 
-    if (!form.perspective) {
+    // Only require perspective for top-level org units (no parent)
+    if (!currentOrgUnit?.parentId && !form.perspective) {
       setError('Perspective is required');
       return;
     }
@@ -720,15 +721,40 @@ export default function KPICreateModal({
       setLoading(true);
       setError(null);
 
+      // First, create the objective if we have a selectedObjective
+      let createdObjectiveId = null;
+      if (selectedObjective && selectedObjective.trim()) {
+        console.log('🔍 [KPI Modal] Creating objective first:', selectedObjective);
+        
+        const objectiveResponse = await apiClient.post(`/tenants/${user?.tenantId}/objectives`, {
+          fiscalYearId: form.fiscalYearId,
+          orgUnitId: currentOrgUnit?.id,
+          name: selectedObjective.trim(),  // Backend expects 'name', not 'title'
+          description: objectiveDescriptions[selectedObjective] || ''
+        });
+        
+        if (objectiveResponse.success && objectiveResponse.data) {
+          createdObjectiveId = (objectiveResponse.data as any).id;
+          console.log('✅ [KPI Modal] Objective created with ID:', createdObjectiveId);
+        } else {
+          throw new Error('Failed to create objective');
+        }
+      }
+
+      if (!createdObjectiveId) {
+        setError('An objective is required. Please create or select an objective first.');
+        setLoading(false);
+        return;
+      }
+
       // Prepare the KPI data for the backend API
       const kpiData = {
         fiscalYearId: form.fiscalYearId,
         // Always use the current org unit ID where the KPI is being created
         orgUnitId: currentOrgUnit?.id || '', 
-        perspectiveId: form.perspective,
-        parentObjectiveId: null, // Will be created by backend
-        objectiveTitle: selectedObjective, // Send the objective title to be created
-        objectiveDescription: objectiveDescriptions[selectedObjective] || '', // Send the objective description if available
+        // Only send perspective for top-level units, let backend auto-resolve for child units
+        ...((!currentOrgUnit?.parentId) && { perspectiveId: form.perspective }),
+        objectiveId: createdObjectiveId, // Use the created objective ID
         performanceComponentId: form.exitComponentId || null, // Link to performance component (initiative)
         name: form.name,
         description: form.description,
@@ -834,36 +860,38 @@ export default function KPICreateModal({
                 )}
               </div>
 
-              {/* Perspective - Second field */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Perspective *
-                </label>
-                <select
-                  value={form.perspective}
-                  onChange={(e) => setForm({ ...form, perspective: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!currentFiscalYear || perspectives.length === 0}
-                  required
-                >
-                  <option value="">Select a perspective</option>
-                  {perspectives.map((perspective) => (
-                    <option key={perspective.id} value={perspective.id}>
-                      {perspective.name}
-                    </option>
-                  ))}
-                </select>
-                {perspectives.length === 0 && currentFiscalYear && (
-                  <p className="text-sm text-amber-600 mt-1">
-                    No perspectives available for the current fiscal year.
-                  </p>
-                )}
-                {!currentFiscalYear && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Set up a fiscal year first to view available perspectives.
-                  </p>
-                )}
-              </div>
+              {/* Perspective - Second field (only for top-level org units) */}
+              {(!currentOrgUnit?.parentId) && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Perspective *
+                  </label>
+                  <select
+                    value={form.perspective}
+                    onChange={(e) => setForm({ ...form, perspective: e.target.value })}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={!currentFiscalYear || perspectives.length === 0}
+                    required
+                  >
+                    <option value="">Select a perspective</option>
+                    {perspectives.map((perspective) => (
+                      <option key={perspective.id} value={perspective.id}>
+                        {perspective.name}
+                      </option>
+                    ))}
+                  </select>
+                  {perspectives.length === 0 && currentFiscalYear && (
+                    <p className="text-sm text-amber-600 mt-1">
+                      No perspectives available for the current fiscal year.
+                    </p>
+                  )}
+                  {!currentFiscalYear && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      Set up a fiscal year first to view available perspectives.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Entry Component Auto-complete - For departments/units with parents (link to initiatives from parent level) */}
               {shouldShowEntryComponentAutoComplete() && (
@@ -1369,7 +1397,17 @@ export default function KPICreateModal({
             </button>
             <button
               type="submit"
-              disabled={loading || !form.targets[0]?.targetValue || !currentFiscalYear || !form.perspective || (shouldShowEntryComponentAutoComplete() && !form.exitComponentId) || !selectedObjective || !form.name.trim() || !form.description?.trim() || !form.code?.trim()}
+              disabled={
+                loading || 
+                !form.targets[0]?.targetValue || 
+                !currentFiscalYear || 
+                (!currentOrgUnit?.parentId && !form.perspective) || // Only require perspective for top-level units
+                (shouldShowEntryComponentAutoComplete() && !form.exitComponentId) || 
+                !selectedObjective || 
+                !form.name.trim() || 
+                !form.description?.trim() || 
+                !form.code?.trim()
+              }
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : `Create ${terminology.kpis}`}

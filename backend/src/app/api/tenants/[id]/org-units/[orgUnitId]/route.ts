@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { authMiddleware } from '@/lib/middleware/auth';
 import { ApiErrorHandler, AuthenticationError, AuthorizationError, ValidationError } from '@/lib/errors';
 
-// GET /api/tenants/[id]/org-units/[unitId] - Get specific organizational unit
+// GET /api/tenants/[id]/org-units/[orgUnitId] - Get specific organizational unit
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; unitId: string } }
+  { params }: { params: { id: string; orgUnitId: string } }
 ) {
   try {
     const authResult = await authMiddleware(request);
@@ -14,7 +14,7 @@ export async function GET(
       throw new AuthenticationError(authResult.error || 'Authentication required');
     }
 
-    const { id: tenantId, unitId } = params;
+    const { id: tenantId, orgUnitId } = params;
     
     // Verify user has access to this tenant
     if (authResult.user?.tenantId !== tenantId) {
@@ -24,7 +24,7 @@ export async function GET(
     // Get the org unit with full details
     const orgUnit = await (prisma as any).orgUnit.findFirst({
       where: {
-        id: unitId,
+        id: orgUnitId,
         tenantId
       },
       include: {
@@ -99,10 +99,10 @@ export async function GET(
   }
 }
 
-// PUT /api/tenants/[id]/org-units/[unitId] - Update organizational unit
+// PUT /api/tenants/[id]/org-units/[orgUnitId] - Update organizational unit
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; unitId: string } }
+  { params }: { params: { id: string; orgUnitId: string } }
 ) {
   try {
     const authResult = await authMiddleware(request);
@@ -110,7 +110,7 @@ export async function PUT(
       throw new AuthenticationError(authResult.error || 'Authentication required');
     }
 
-    const { id: tenantId, unitId } = params;
+    const { id: tenantId, orgUnitId } = params;
     
     // Verify user has access to this tenant
     if (authResult.user?.tenantId !== tenantId) {
@@ -132,7 +132,7 @@ export async function PUT(
     // Get current org unit
     const currentUnit = await (prisma as any).orgUnit.findFirst({
       where: {
-        id: unitId,
+        id: orgUnitId,
         tenantId
       },
       include: {
@@ -154,7 +154,7 @@ export async function PUT(
           tenantId,
           levelDefinitionId: currentUnit.levelDefinitionId,
           code,
-          id: { not: unitId }
+          id: { not: orgUnitId }
         }
       });
 
@@ -165,7 +165,7 @@ export async function PUT(
 
     // Validate parent hierarchy if parentId is being changed
     if (parentId && parentId !== currentUnit.parentId) {
-      if (parentId === unitId) {
+      if (parentId === orgUnitId) {
         throw new ValidationError('Organization unit cannot be its own parent');
       }
 
@@ -190,7 +190,7 @@ export async function PUT(
       }
 
       // Check for circular references
-      const isDescendant = await checkIsDescendant(parentId, unitId, tenantId);
+      const isDescendant = await checkIsDescendant(parentId, orgUnitId, tenantId);
       if (isDescendant) {
         throw new ValidationError('Cannot move unit under its own descendant (would create circular reference)');
       }
@@ -214,7 +214,7 @@ export async function PUT(
     const updatedUnit = await prisma.$transaction(async (tx) => {
       // Update the unit itself
       const unit = await tx.orgUnit.update({
-        where: { id: unitId },
+        where: { id: orgUnitId },
         data: {
           ...(name && { name }),
           ...(description !== undefined && { description }),
@@ -231,14 +231,14 @@ export async function PUT(
       if (kpiChampionIds !== undefined) {
         // Remove existing KPI champion assignments
         await (tx as any).orgUnitKpiChampion.deleteMany({
-          where: { orgUnitId: unitId }
+          where: { orgUnitId: orgUnitId }
         });
 
         // Add new KPI champion assignments
         if (kpiChampionIds.length > 0) {
           await (tx as any).orgUnitKpiChampion.createMany({
             data: kpiChampionIds.map((userId: string) => ({
-              orgUnitId: unitId,
+              orgUnitId: orgUnitId,
               userId,
               assignedBy: authResult.user?.id || 'system'
             }))
@@ -248,7 +248,7 @@ export async function PUT(
 
       // Return the updated unit with all relations
       return await (tx as any).orgUnit.findUnique({
-        where: { id: unitId },
+        where: { id: orgUnitId },
         include: {
           levelDefinition: true,
           parent: {
@@ -291,10 +291,10 @@ export async function PUT(
   }
 }
 
-// DELETE /api/tenants/[id]/org-units/[unitId] - Deactivate organizational unit
+// DELETE /api/tenants/[id]/org-units/[orgUnitId] - Deactivate organizational unit
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; unitId: string } }
+  { params }: { params: { id: string; orgUnitId: string } }
 ) {
   try {
     const authResult = await authMiddleware(request);
@@ -302,7 +302,7 @@ export async function DELETE(
       throw new AuthenticationError(authResult.error || 'Authentication required');
     }
 
-    const { id: tenantId, unitId } = params;
+    const { id: tenantId, orgUnitId } = params;
     
     // Verify user has access to this tenant
     if (authResult.user?.tenantId !== tenantId) {
@@ -312,7 +312,7 @@ export async function DELETE(
     // Get current org unit to check if it exists and has children/assignments
     const currentUnit = await (prisma as any).orgUnit.findFirst({
       where: {
-        id: unitId,
+        id: orgUnitId,
         tenantId
       },
       include: {
@@ -350,7 +350,7 @@ export async function DELETE(
 
     // Soft delete by setting isActive to false and effectiveTo to now
     await (prisma as any).orgUnit.update({
-      where: { id: unitId },
+      where: { id: orgUnitId },
       data: {
         isActive: false,
         effectiveTo: new Date(),
