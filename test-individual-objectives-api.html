@@ -1,0 +1,66 @@
+// Test the individual objectives endpoint directly
+// This file can be opened in browser to test the API
+
+console.log('Testing individual objectives API...');
+
+// Function to test the API call
+async function testIndividualObjectivesAPI() {
+  try {
+    console.log('🔍 Making request to /api/objectives/individual...');
+    
+    // You'll need to replace this with a valid fiscal year ID from your database
+    const fiscalYearId = 'your_fiscal_year_id_here'; // Update this!
+    
+    const response = await fetch(`/api/objectives/individual?fiscalYearId=${fiscalYearId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        // Authentication will be handled by cookies in browser
+      },
+    });
+    
+    console.log('📊 Response status:', response.status);
+    console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ API Error:', response.status, errorText);
+      return;
+    }
+    
+    const data = await response.json();
+    console.log('✅ API Response:', data);
+    
+    if (data.success && data.data) {
+      console.log('📋 Individual objectives found:', data.data.length);
+      data.data.forEach((obj, index) => {
+        console.log(`  ${index + 1}. ${obj.name} (ID: ${obj.id})`);
+      });
+    } else {
+      console.log('📋 No individual objectives found or API error');
+    }
+    
+  } catch (error) {
+    console.error('❌ Network error:', error);
+  }
+}
+
+// Instructions for manual testing
+console.log(`
+🔧 Manual Testing Instructions:
+1. Open browser dev tools (F12)
+2. Go to your MetricSoft app
+3. Make sure you're logged in
+4. Open this file in a new tab or copy the testIndividualObjectivesAPI function to console
+5. Update the fiscalYearId variable with a real ID
+6. Run: testIndividualObjectivesAPI()
+`);
+
+// Auto-run if in browser context
+if (typeof window !== 'undefined') {
+  // Wait a bit for page to load, then test
+  setTimeout(() => {
+    console.log('🔄 Auto-testing in 3 seconds...');
+    setTimeout(testIndividualObjectivesAPI, 3000);
+  }, 1000);
+}

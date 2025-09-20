@@ -540,35 +540,41 @@ export default function KPICreateModal({
     try {
       // Create the objective in the organization
       const response = await apiClient.post(`/tenants/${user?.tenantId}/objectives`, {
-        title: newObjectiveForm.title.trim(),
-        description: newObjectiveForm.description.trim()
+        name: newObjectiveForm.title.trim(),
+        description: newObjectiveForm.description.trim(),
+        orgUnitId: currentOrgUnit?.id,
+        fiscalYearId: currentFiscalYear?.id
       });
 
       // Handle the API response - check for objective data in the expected structure
       let newObjectiveData = null;
       
-      // Check if response.data has success and data properties (expected structure)
-      if ((response.data as any).success && (response.data as any).data?.objective) {
-        newObjectiveData = (response.data as any).data.objective;
+      // Check if response.data has success and data properties (tenant endpoint structure)
+      if ((response.data as any).success && (response.data as any).data) {
+        newObjectiveData = (response.data as any).data;
       }
-      // Check if response.data has objective directly (actual structure from apiClient)
+      // Check if response.data has objective directly (fallback structure)
       else if ((response.data as any).objective) {
         newObjectiveData = (response.data as any).objective;
       }
+      // Check if response.data is the objective directly (direct structure)
+      else if ((response.data as any).id && (response.data as any).name) {
+        newObjectiveData = response.data as any;
+      }
       
-      if (newObjectiveData && newObjectiveData.title) {
+      if (newObjectiveData && newObjectiveData.name) {
         // Add the new objective to available objectives
-        setAvailableObjectives(prev => [...prev, newObjectiveData.title]);
-        setFilteredObjectives(prev => [...prev, newObjectiveData.title]);
+        setAvailableObjectives(prev => [...prev, newObjectiveData.name]);
+        setFilteredObjectives(prev => [...prev, newObjectiveData.name]);
         
         // Store the description for this objective
         setObjectiveDescriptions(prev => ({
           ...prev,
-          [newObjectiveData.title]: newObjectiveForm.description.trim()
+          [newObjectiveData.name]: newObjectiveForm.description.trim()
         }));
         
         // Select the new objective
-        handleObjectiveSelect(newObjectiveData.title);
+        handleObjectiveSelect(newObjectiveData.name);
         
         // Reset create form
         setShowCreateObjectiveForm(false);

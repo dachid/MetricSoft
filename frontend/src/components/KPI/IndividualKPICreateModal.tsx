@@ -258,58 +258,34 @@ export default function IndividualKPICreateModal({
     try {
       console.log('🔍 [Individual KPI Modal] Fetching user individual objectives...');
       console.log('🔍 [Individual KPI Modal] User tenant:', user?.tenantId);
+      console.log('🔍 [Individual KPI Modal] User ID:', user?.id);
       console.log('🔍 [Individual KPI Modal] Current fiscal year:', currentFiscalYear?.id);
       
-      if (!user?.tenantId || !currentFiscalYear?.id) {
+      if (!user?.tenantId || !user?.id || !currentFiscalYear?.id) {
         console.log('❌ [Individual KPI Modal] Missing required data for objective fetch');
         return;
       }
 
-      // First, find the user's individual org unit
-      const orgUnitsResponse = await apiClient.get(`/tenants/${user.tenantId}/org-units?fiscalYearId=${currentFiscalYear.id}`);
-      console.log('🔍 [Individual KPI Modal] Org units response for user lookup:', orgUnitsResponse);
+      // For individual KPIs, fetch objectives where orgUnitId is null and createdById is the user
+      const url = `/objectives/individual?fiscalYearId=${currentFiscalYear.id}`;
+      console.log('🔍 [Individual KPI Modal] Fetching from URL:', url);
       
-      if (orgUnitsResponse.data && (orgUnitsResponse.data as any).orgUnits) {
-        const allUnits = (orgUnitsResponse.data as any).orgUnits;
-        
-        // Find the Individual level org unit for this user
-        // This could be based on user assignment or we might need to create one
-        // For now, let's look for an Individual level unit
-        const individualUnit = allUnits.find((unit: any) => {
-          console.log('🔍 [Individual KPI Modal] Checking unit:', unit.name, 'Level:', unit.levelDefinition?.name);
-          return unit.levelDefinition?.name === 'Individual' || 
-                 unit.levelDefinition?.name === 'Individual Unit' ||
-                 unit.levelDefinition?.name === 'Employee';
-        });
-        
-        console.log('🔍 [Individual KPI Modal] Found individual unit:', individualUnit);
-        
-        if (individualUnit) {
-          setUserIndividualOrgUnit(individualUnit);
-          
-          // Fetch objectives for this individual unit
-          const url = `/objectives?orgUnitId=${individualUnit.id}&fiscalYearId=${currentFiscalYear.id}`;
-          console.log('🔍 [Individual KPI Modal] Fetching objectives from URL:', url);
-          
-          const response = await apiClient.get(url);
-          console.log('🔍 [Individual KPI Modal] Individual objectives response:', response);
-          
-          if (response.data && Array.isArray(response.data)) {
-            console.log('🔍 [Individual KPI Modal] Found individual objectives:', response.data);
-            setObjectives(response.data);
-            setFilteredObjectives(response.data);
-          } else {
-            console.log('🔍 [Individual KPI Modal] No individual objectives found, setting empty');
-            setObjectives([]);
-            setFilteredObjectives([]);
-          }
-        } else {
-          console.log('🔍 [Individual KPI Modal] No individual org unit found, will create KPI with selected department as fallback');
-          // For now, we'll use the selected department as the org unit for individual KPIs
-          // In a full implementation, you might want to create an individual org unit here
-          setObjectives([]);
-          setFilteredObjectives([]);
+      const response = await apiClient.get(url);
+      console.log('🔍 [Individual KPI Modal] Objectives response:', response);
+      
+      // apiClient returns { success: boolean, data?: T, error?: ApiError }
+      if (response.success && response.data && Array.isArray(response.data)) {
+        console.log('🔍 [Individual KPI Modal] Found individual objectives:', response.data);
+        setObjectives(response.data);
+        setFilteredObjectives(response.data);
+      } else {
+        console.log('🔍 [Individual KPI Modal] No individual objectives found or API error');
+        console.log('🔍 [Individual KPI Modal] Response:', response);
+        if (response.error) {
+          console.error('🔍 [Individual KPI Modal] API Error:', response.error);
         }
+        setObjectives([]);
+        setFilteredObjectives([]);
       }
     } catch (error) {
       console.error('🔍 [Individual KPI Modal] Error fetching individual objectives:', error);
@@ -318,36 +294,42 @@ export default function IndividualKPICreateModal({
     }
   };
 
-  // Fetch objectives from selected department (DEPRECATED - keeping for reference)
+  // Fetch objectives from user (individual objectives have null orgUnitId)
   const fetchObjectivesFromOrgUnit = async () => {
     try {
-      console.log('🔍 [Individual KPI Modal] Fetching objectives...');
+      console.log('🔍 [Individual KPI Modal] Fetching individual objectives...');
       console.log('🔍 [Individual KPI Modal] User tenant:', user?.tenantId);
-      console.log('🔍 [Individual KPI Modal] Selected org unit:', form.orgUnitId);
+      console.log('🔍 [Individual KPI Modal] User ID:', user?.id);
       console.log('🔍 [Individual KPI Modal] Current fiscal year:', currentFiscalYear?.id);
       
-      if (!user?.tenantId || !form.orgUnitId || !currentFiscalYear?.id) {
+      if (!user?.tenantId || !user?.id || !currentFiscalYear?.id) {
         console.log('❌ [Individual KPI Modal] Missing required data for objective fetch');
         return;
       }
 
-      const url = `/objectives?orgUnitId=${form.orgUnitId}&fiscalYearId=${currentFiscalYear.id}`;
+      // For individual KPIs, fetch objectives where orgUnitId is null and createdById is the user
+      const url = `/objectives/individual?fiscalYearId=${currentFiscalYear.id}`;
       console.log('🔍 [Individual KPI Modal] Fetching from URL:', url);
       
       const response = await apiClient.get(url);
       console.log('🔍 [Individual KPI Modal] Objectives response:', response);
       
-      if (response.data && Array.isArray(response.data)) {
-        console.log('🔍 [Individual KPI Modal] Found objectives:', response.data);
+      // apiClient returns { success: boolean, data?: T, error?: ApiError }
+      if (response.success && response.data && Array.isArray(response.data)) {
+        console.log('🔍 [Individual KPI Modal] Found individual objectives:', response.data);
         setObjectives(response.data);
         setFilteredObjectives(response.data);
       } else {
-        console.log('🔍 [Individual KPI Modal] No objectives found, setting empty');
+        console.log('🔍 [Individual KPI Modal] No individual objectives found or API error');
+        console.log('🔍 [Individual KPI Modal] Response:', response);
+        if (response.error) {
+          console.error('🔍 [Individual KPI Modal] API Error:', response.error);
+        }
         setObjectives([]);
         setFilteredObjectives([]);
       }
     } catch (error) {
-      console.error('🔍 [Individual KPI Modal] Error fetching objectives:', error);
+      console.error('🔍 [Individual KPI Modal] Error fetching individual objectives:', error);
       setObjectives([]);
       setFilteredObjectives([]);
     }
@@ -466,11 +448,21 @@ export default function IndividualKPICreateModal({
 
   // Handle form submission
   const handleSubmit = async () => {
-    if (isSubmitting) return;
+    console.log('🚀 [KPI Submit] Starting handleSubmit...');
+    console.log('🚀 [KPI Submit] Current form state:', form);
+    console.log('🚀 [KPI Submit] Current selectedObjective:', selectedObjective);
+    console.log('🚀 [KPI Submit] Current form.objectiveId:', form.objectiveId);
+    
+    if (isSubmitting) {
+      console.log('🚀 [KPI Submit] Already submitting, returning early');
+      return;
+    }
 
     // Validate that objectiveId is provided
     if (!form.objectiveId) {
       console.error('❌ [Individual KPI Modal] objectiveId is required');
+      console.error('❌ [Individual KPI Modal] form.objectiveId:', form.objectiveId);
+      console.error('❌ [Individual KPI Modal] selectedObjective:', selectedObjective);
       alert('Please select an objective before creating the KPI');
       setIsSubmitting(false);
       return;
@@ -502,7 +494,13 @@ export default function IndividualKPICreateModal({
         isRecurring: form.isRecurring,
         frequency: form.isRecurring ? form.frequency : null,
         dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
-        target: parseFloat(form.targets[0]?.targetValue || '0'),
+        target: form.targets[0] ? {
+          targetValue: form.targets[0].targetValue,
+          currentValue: form.targets[0].currentValue || '0',
+          targetType: form.targets[0].targetType || 'NUMERIC',
+          targetLabel: form.targets[0].targetLabel || '',
+          targetDirection: form.targets[0].targetDirection || 'INCREASING'
+        } : null,
       };
 
       console.log('🔍 [Individual KPI Modal] Final KPI data being sent:', kpiData);
@@ -526,6 +524,10 @@ export default function IndividualKPICreateModal({
   };
 
   const resetForm = () => {
+    console.log('🔄 [Form Reset] Resetting form state...');
+    console.log('🔄 [Form Reset] Current form before reset:', form);
+    console.log('🔄 [Form Reset] Current selectedObjective before reset:', selectedObjective);
+    
     setForm({
       fiscalYearId: currentFiscalYear?.id || '',
       orgUnitId: '',
@@ -553,15 +555,27 @@ export default function IndividualKPICreateModal({
     setExitComponentSearch('');
     setEvaluatorSearch('');
     setUserIndividualOrgUnit(null);
+    
+    console.log('✅ [Form Reset] Form reset completed');
   };
 
   // Objective selection and creation handlers
   const handleObjectiveSelect = (objective: Objective) => {
     const objectiveName = objective.name || (objective as any).title;
     console.log('🔍 [Individual KPI Modal] Objective selected:', objectiveName, 'objective:', objective);
+    console.log('🔍 [Individual KPI Modal] Setting selectedObjective to:', objective);
+    console.log('🔍 [Individual KPI Modal] Setting form.objectiveId to:', objective.id);
+    
     setSelectedObjective(objective); // Set the full objective object
-    setForm(prev => ({ ...prev, objectiveId: objective.id }));
+    setForm(prev => {
+      const updatedForm = { ...prev, objectiveId: objective.id };
+      console.log('🔍 [Individual KPI Modal] Form updated with objectiveId:', updatedForm.objectiveId);
+      console.log('🔍 [Individual KPI Modal] Complete updated form:', updatedForm);
+      return updatedForm;
+    });
     setShowObjectiveDropdown(false);
+    
+    console.log('🔍 [Individual KPI Modal] handleObjectiveSelect completed');
   };
 
   // Auto-generate KPI code based on name and objective
@@ -600,35 +614,81 @@ export default function IndividualKPICreateModal({
   };
 
   const handleCreateNewObjective = async () => {
-    if (!newObjectiveTitle.trim()) return;
-
-    // Use individual org unit if available, otherwise use selected department
-    const targetOrgUnitId = userIndividualOrgUnit?.id || form.orgUnitId;
+    console.log('🚀 [Objective Creation] Starting handleCreateNewObjective...');
+    console.log('🚀 [Objective Creation] newObjectiveTitle:', newObjectiveTitle);
+    console.log('🚀 [Objective Creation] newObjectiveDescription:', newObjectiveDescription);
     
-    if (!targetOrgUnitId) {
-      console.error('No org unit available for objective creation');
+    if (!newObjectiveTitle.trim()) {
+      console.log('❌ [Objective Creation] Empty title, returning early');
       return;
     }
 
+    // For individual KPIs, use null as orgUnitId to indicate it's an individual objective
+    console.log('🚀 [Objective Creation] Using null orgUnitId for individual objective');
+    console.log('🚀 [Objective Creation] User:', user);
+    
+    if (!user?.id) {
+      console.error('❌ [Objective Creation] No user ID available for individual objective creation');
+      return;
+    }
+
+    const objectivePayload = {
+      name: newObjectiveTitle.trim(),
+      description: newObjectiveDescription.trim() || '',
+      orgUnitId: null, // null indicates individual objective
+      fiscalYearId: currentFiscalYear?.id
+    };
+    
+    console.log('🚀 [Objective Creation] Payload being sent:', objectivePayload);
+    console.log('🚀 [Objective Creation] Current fiscal year:', currentFiscalYear);
+
     try {
-      const response = await apiClient.post(`/objectives`, {
-        name: newObjectiveTitle.trim(),
-        description: newObjectiveDescription.trim() || '',
-        orgUnitId: targetOrgUnitId,
-        fiscalYearId: currentFiscalYear?.id
-      });
+      console.log('🚀 [Objective Creation] Making API call to /objectives...');
+      const response = await apiClient.post(`/objectives`, objectivePayload);
+      console.log('🚀 [Objective Creation] API Response:', response);
+      console.log('🚀 [Objective Creation] Response.success:', response.success);
+      console.log('🚀 [Objective Creation] Response.data:', response.data);
 
       if (response.success && response.data) {
         const newObj = response.data as Objective;
-        setObjectives(prev => [...prev, newObj]);
-        setFilteredObjectives(prev => [...prev, newObj]);
+        console.log('✅ [Objective Creation] New objective created:', newObj);
+        
+        console.log('🚀 [Objective Creation] Current objectives before update:', objectives);
+        setObjectives(prev => {
+          const updated = [...prev, newObj];
+          console.log('🚀 [Objective Creation] Updated objectives array:', updated);
+          return updated;
+        });
+        
+        console.log('🚀 [Objective Creation] Current filtered objectives before update:', filteredObjectives);
+        setFilteredObjectives(prev => {
+          const updated = [...prev, newObj];
+          console.log('🚀 [Objective Creation] Updated filtered objectives array:', updated);
+          return updated;
+        });
+        
+        console.log('🚀 [Objective Creation] Calling handleObjectiveSelect with new objective...');
         handleObjectiveSelect(newObj);
+        
+        console.log('🚀 [Objective Creation] Resetting form state...');
         setShowCreateObjectiveForm(false);
         setNewObjectiveTitle('');
         setNewObjectiveDescription('');
+        
+        console.log('✅ [Objective Creation] Objective creation completed successfully');
+      } else {
+        console.error('❌ [Objective Creation] API call failed or no data returned');
+        console.error('❌ [Objective Creation] Response:', response);
       }
     } catch (error) {
-      console.error('Error creating objective:', error);
+      console.error('❌ [Objective Creation] Error creating objective:', error);
+      if (error instanceof Error) {
+        console.error('❌ [Objective Creation] Error details:', {
+          message: error.message,
+          stack: error.stack,
+          response: (error as any).response
+        });
+      }
     }
   };
 
@@ -658,13 +718,19 @@ export default function IndividualKPICreateModal({
 
   // Search filter handlers
   useEffect(() => {
+    console.log('🔍 [Objective Search] Effect triggered');
+    console.log('🔍 [Objective Search] objectiveSearch:', objectiveSearch);
+    console.log('🔍 [Objective Search] objectives array:', objectives);
+    
     if (objectiveSearch) {
       const filtered = objectives.filter(obj => 
         obj.name?.toLowerCase()?.includes(objectiveSearch.toLowerCase()) ||
         (obj as any).title?.toLowerCase()?.includes(objectiveSearch.toLowerCase())
       );
+      console.log('🔍 [Objective Search] Filtered objectives:', filtered);
       setFilteredObjectives(filtered);
     } else {
+      console.log('🔍 [Objective Search] No search term, using all objectives');
       setFilteredObjectives(objectives);
     }
   }, [objectiveSearch, objectives]);
@@ -679,6 +745,18 @@ export default function IndividualKPICreateModal({
       setFilteredExitComponents(exitComponents);
     }
   }, [exitComponentSearch, exitComponents]);
+
+  // Debug: Track form.objectiveId changes
+  useEffect(() => {
+    console.log('🔍 [Form Debug] form.objectiveId changed to:', form.objectiveId);
+    console.log('🔍 [Form Debug] Current selectedObjective:', selectedObjective);
+  }, [form.objectiveId]);
+
+  // Debug: Track selectedObjective changes
+  useEffect(() => {
+    console.log('🔍 [Form Debug] selectedObjective changed to:', selectedObjective);
+    console.log('🔍 [Form Debug] Current form.objectiveId:', form.objectiveId);
+  }, [selectedObjective]);
 
   if (!isOpen) return null;
 
