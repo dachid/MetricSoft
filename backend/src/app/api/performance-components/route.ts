@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, organizationalLevel, weight } = body;
+    const { name, description, organizationalLevel, weight, orgUnitId } = body;
 
     if (!name || !organizationalLevel) {
       return NextResponse.json(
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
     const component = await prisma.performanceComponent.create({
       data: {
         tenantId: user.tenantId || '',
+        orgUnitId: orgUnitId || null,
         name,
         description,
         organizationalLevel,

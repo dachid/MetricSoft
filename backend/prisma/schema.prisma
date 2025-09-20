@@ -503,7 +503,7 @@ model KPIObjective {
   id                    String     @id @default(cuid())
   tenantId              String
   fiscalYearId          String
-  orgUnitId             String
+  orgUnitId             String?
   name                  String
   description           String?
   parentExitComponentId String?
@@ -514,7 +514,7 @@ model KPIObjective {
   
   tenant                Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   fiscalYear            FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
-  orgUnit               OrgUnit    @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  orgUnit               OrgUnit?   @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
   createdBy             User       @relation("CreatedObjectives", fields: [createdById], references: [id], onDelete: Cascade)
   
   kpis                  KPI[]

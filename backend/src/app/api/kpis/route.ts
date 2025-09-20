@@ -148,8 +148,31 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       target
     } = body;
 
-    // Validation
-    if (!fiscalYearId || !orgUnitId || !name || !code || !evaluatorId) {
+    console.log('🚀 [KPI API] Create KPI request data:', {
+      fiscalYearId,
+      orgUnitId,
+      perspectiveId,
+      objectiveId,
+      performanceComponentId,
+      name,
+      description,
+      code,
+      evaluatorId,
+      isRecurring,
+      frequency,
+      dueDate,
+      target,
+      userId: authResult.user.id
+    });
+
+    // Validation - allow orgUnitId to be null for individual KPIs
+    if (!fiscalYearId || !name || !code || !evaluatorId) {
+      console.log('❌ [KPI API] Missing required fields:', {
+        fiscalYearId: !!fiscalYearId,
+        name: !!name,
+        code: !!code,
+        evaluatorId: !!evaluatorId
+      });
       throw new ValidationError('Missing required fields');
     }
 
@@ -171,38 +194,107 @@ export const POST = createApiRoute(async (request: NextRequest) => {
       throw new ValidationError('Invalid or non-current fiscal year');
     }
 
-    // Verify org unit exists
-    const orgUnit = await prisma.orgUnit.findFirst({
-      where: {
-        id: orgUnitId,
-        tenantId: authResult.user.tenantId,
-        fiscalYearId
-      },
-      include: {
-        levelDefinition: true
-      }
-    });
+    // Verify org unit exists (skip for individual KPIs where orgUnitId is null)
+    let orgUnit = null;
+    if (orgUnitId) {
+      orgUnit = await prisma.orgUnit.findFirst({
+        where: {
+          id: orgUnitId,
+          tenantId: authResult.user.tenantId,
+          fiscalYearId
+        },
+        include: {
+          levelDefinition: true
+        }
+      });
 
-    if (!orgUnit) {
-      throw new ValidationError('Invalid organizational unit');
+      if (!orgUnit) {
+        throw new ValidationError('Invalid organizational unit');
+      }
+
+      // Check if user is a KPI champion for this org unit (only for organizational KPIs)
+      const isKpiChampion = await prisma.orgUnitKpiChampion.findFirst({
+        where: {
+          orgUnitId,
+          userId: authResult.user.id
+        }
+      });
+
+      if (!isKpiChampion) {
+        throw new AuthorizationError('User is not a KPI champion for this organizational unit');
+      }
+    } else {
+      console.log('🔍 [KPI API] Individual KPI detected (orgUnitId is null), skipping org unit validation');
     }
 
-    // Check if user is a KPI champion for this org unit
-    const isKpiChampion = await prisma.orgUnitKpiChampion.findFirst({
-      where: {
-        orgUnitId,
-        userId: authResult.user.id
-      }
-    });
-
-    if (!isKpiChampion) {
-      throw new AuthorizationError('User is not a KPI champion for this organizational unit');
-    }
-
-    // Auto-resolve perspective for child org units
+    // Auto-resolve perspective using performance component chain
     let finalPerspectiveId = perspectiveId;
     
-    if (!finalPerspectiveId && orgUnit.parentId) {
+    // Convert empty string to null for consistency
+    if (finalPerspectiveId === '') {
+      finalPerspectiveId = null;
+    }
+    
+    // If no perspective provided, resolve from performance component chain
+    if (!finalPerspectiveId && performanceComponentId) {
+      console.log(`🔍 [KPI API] Resolving perspective from performance component chain: ${performanceComponentId}`);
+      
+      try {
+        // Follow the performance component chain backwards to find the root organizational KPI
+        let currentComponentId: string | null = performanceComponentId;
+        let chainDepth = 0;
+        const maxDepth = 20;
+        
+        while (currentComponentId && chainDepth < maxDepth) {
+          chainDepth++;
+          console.log(`🔍 [KPI API] Chain level ${chainDepth}: Component ${currentComponentId}`);
+          
+          const component = await prisma.performanceComponent.findUnique({
+            where: { id: currentComponentId }
+          });
+          
+          if (!component?.kpiId) {
+            console.log(`🔍 [KPI API] No source KPI found for component ${currentComponentId}`);
+            break;
+          }
+          
+          const sourceKpi = await prisma.kPI.findUnique({
+            where: { 
+              id: component.kpiId,
+              tenantId: authResult.user.tenantId 
+            }
+          });
+          
+          if (!sourceKpi) {
+            console.log(`🔍 [KPI API] Source KPI ${component.kpiId} not found`);
+            break;
+          }
+          
+          console.log(`🔍 [KPI API] Found source KPI: ${sourceKpi.name} (${sourceKpi.id})`);
+          console.log(`🔍 [KPI API] Source KPI perspective: ${sourceKpi.perspectiveId}`);
+          console.log(`🔍 [KPI API] Source KPI performance component: ${sourceKpi.performanceComponentId}`);
+          
+          // If this KPI has no performance component, it's the root organizational KPI
+          if (!sourceKpi.performanceComponentId) {
+            finalPerspectiveId = sourceKpi.perspectiveId;
+            console.log(`🔍 [KPI API] Found root KPI, resolved perspective: ${finalPerspectiveId}`);
+            break;
+          }
+          
+          // Continue following the chain
+          currentComponentId = sourceKpi.performanceComponentId;
+        }
+        
+        if (chainDepth >= maxDepth) {
+          console.log(`⚠️ [KPI API] Maximum chain depth reached, potential circular reference`);
+        }
+      } catch (error) {
+        console.error(`🔍 [KPI API] Error resolving perspective from component chain:`, error);
+      }
+    }
+    
+    // If still no perspective and this is an organizational KPI, auto-resolve from org unit hierarchy
+    if (!finalPerspectiveId && orgUnit && orgUnit.parentId) {
       // This is a child unit, resolve perspective from root unit
       let currentUnit = orgUnit;
       

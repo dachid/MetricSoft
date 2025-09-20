@@ -128,14 +128,19 @@ export const POST = createApiRoute(async (req: NextRequest, { params }: { params
       throw new AuthorizationError('Access denied');
     }
 
+    // Verify KPI has org unit (required for department-level KPIs)
+    if (!kpi.orgUnit) {
+      throw new ValidationError('KPI must have an organizational unit');
+    }
+
     // Create the exit component in performance_components table
     const exitComponent = await prisma.$queryRaw`
       INSERT INTO performance_components (
-        id, "tenantId", name, description, "organizationalLevel", 
+        id, "tenantId", "orgUnitId", name, description, "organizationalLevel", 
         "componentType", "kpiId", "templateId", "createdById", 
         weight, "isActive", "createdAt", "updatedAt"
       ) VALUES (
-        gen_random_uuid()::text, ${kpi.tenantId}, ${name}, ${description}, ${kpi.orgUnit.levelDefinition.name},
+        gen_random_uuid()::text, ${kpi.tenantId}, ${kpi.orgUnitId}, ${name}, ${description}, ${kpi.orgUnit.levelDefinition.name},
         'EXIT', ${kpiId}, ${parentExitComponentId}, ${authResult.user.id},
         1.0, true, NOW(), NOW()
       ) RETURNING *
